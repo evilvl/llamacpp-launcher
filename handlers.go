@@ -45,9 +45,9 @@ func handleModels(w http.ResponseWriter, r *http.Request) {
 }
 
 type configResponse struct {
-	Model  string            `json:"model"`
-	Flags  map[string]string `json:"flags"`
-	Extra  string            `json:"extra"`
+	Model string            `json:"model"`
+	Flags map[string]string `json:"flags"`
+	Extra string            `json:"extra"`
 }
 
 func handleFlags(w http.ResponseWriter, r *http.Request) {

@@ -9,11 +9,11 @@ import (
 
 func TestUnquoteShell(t *testing.T) {
 	cases := map[string]string{
-		`"--flash-attn on"`:  "--flash-attn on",
-		`'simple'`:           "simple",
-		`plain`:              "plain",
-		`a\ b`:               "a b",
-		`"with \"q\""`:       `with "q"`,
+		`"--flash-attn on"`: "--flash-attn on",
+		`'simple'`:          "simple",
+		`plain`:             "plain",
+		`a\ b`:              "a b",
+		`"with \"q\""`:      `with "q"`,
 	}
 	for in, want := range cases {
 		if got := unquoteShell(in); got != want {
@@ -125,9 +125,9 @@ func TestGenerateUnit(t *testing.T) {
 		"--api-key testkey",
 		"WantedBy=multi-user.target",
 		// NVIDIA power-management is best-effort and portable:
-		"ExecStartPre=-/bin/sh -c",          // non-fatal
-		"nvidia-smi not found",              // reports when absent
-		"LLAMA_INSTALL_NVIDIA_TOOLS",        // optional auto-install hook
+		"ExecStartPre=-/bin/sh -c",   // non-fatal
+		"nvidia-smi not found",       // reports when absent
+		"LLAMA_INSTALL_NVIDIA_TOOLS", // optional auto-install hook
 	} {
 		if !strings.Contains(unit, need) {
 			t.Errorf("unit missing %q\n---\n%s", need, unit)

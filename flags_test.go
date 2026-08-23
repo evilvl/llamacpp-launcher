@@ -6,11 +6,11 @@ import (
 
 func TestParseFlagLineKinds(t *testing.T) {
 	cases := []struct {
-		line          string
-		canonical     string
-		kind          Kind
-		wantChoices   []string
-		wantDefault   string
+		line        string
+		canonical   string
+		kind        Kind
+		wantChoices []string
+		wantDefault string
 	}{
 		{"-fa,   --flash-attn [on|off|auto]       set Flash Attention use ... (default: 'auto')",
 			"--flash-attn", KindEnum, []string{"on", "off", "auto"}, "auto"},

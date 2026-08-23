@@ -18,7 +18,7 @@ const (
 
 // FlagDef — описание одного аргумента llama-server (из --help).
 type FlagDef struct {
-	Canonical string   `json:"name"`   // основное имя, например --gpu-layers
+	Canonical string   `json:"name"`    // основное имя, например --gpu-layers
 	Aliases   []string `json:"aliases"` // все короткие/длинные имена
 	Kind      Kind     `json:"kind"`
 	Choices   []string `json:"choices,omitempty"`

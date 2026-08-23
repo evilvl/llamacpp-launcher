@@ -57,8 +57,8 @@ The service unit `ExecStart` is built as ordered segments: `binary`, `-m model`,
 | `discover.go` | recursive `.gguf` discovery in `MODEL_ROOT`, human-readable sizes |
 | `handlers.go` | JSON endpoints for models / config / flags / status / logs |
 | `ui/index.html` | embedded single-page UI + i18n table |
-| `smoke.sh` | local build + run + curl smoke test |
-| `tests/` | Go unit tests + `tests/ui_i18n.test.mjs` (Node) + `tests/run.sh` runner |
+| `flake.nix` | Nix flake: `nix build .` (package), `nix develop` (dev shell), `nix flake check` (go vet + go test + UI/i18n + gofmt), `nix fmt` (alejandra) |
+| `tests/` | Go unit tests + `tests/ui_i18n.test.mjs` (Node) — both run under `nix flake check` |
 
 ---
 
@@ -82,15 +82,22 @@ Default flags applied to every new model (overridable per config): `--host`, `--
 
 ## Build & run
 
+Everything builds and runs inside a Nix flake (`flake.nix`, pinned to `nixpkgs`
+`nixos-unstable` so the Go toolchain matches `go.mod`'s `go 1.26`). Enter a dev
+shell — it provides go + nodejs with `CGO_ENABLED=0` by default (no gcc needed):
+
 ```bash
-# Build the web server binary
-nix-shell -p go --command 'go build -o llama-cpp-webui .'
+# Enter the dev shell
+nix develop
+
+# Build the web server binary (static, CGO_ENABLED=0)
+nix build .          # output: ./result/bin/llama-cpp-webui
 
 # Run (needs read access to MODEL_ROOT and a llama-server binary)
 LLAMA_MODEL_ROOT=/opt/models \
 LLAMA_SERVER_BIN=/opt/llama-bin/llama-server \
 LLAMA_SERVICE_NAME=llama-coder \
-./llama-cpp-webui --web-host 127.0.0.1 --web-port 8080
+./result/bin/llama-cpp-webui --web-host 127.0.0.1 --web-port 8080
 ```
 
 Open <http://localhost:8080>.
@@ -142,15 +149,17 @@ Add a string: put the key in `en`, add a `ru` (and any other language) entry, th
 
 Go unit tests (`go test ./...`) cover: shell quoting, config round-trip, model discovery, unit/`buildExecStart` generation, `--help` parsing (kinds / choices / sections), flag sorting, and the HTTP handlers.
 
-UI/i18n is tested in pure Node (no browser, no npm) — `tests/ui_i18n.test.mjs` loads the page, checks the default is English, verifies RU switching + persistence, fallbacks, and the `<html lang="en">` + `<select id="lang">` dropdown:
+UI/i18n is tested in pure Node (no browser, no npm) — `tests/ui_i18n.test.mjs` loads the page, checks the default is English, verifies RU switching + persistence, fallbacks, and the `<html lang="en">` + `<select id="lang">` dropdown.
+
+Run the whole suite with `nix flake check` — it builds the package and runs
+`go vet` + `go test ./...`, `node tests/ui_i18n.test.mjs`, and a `gofmt` check:
 
 ```bash
-# everything at once
-nix-shell -p go nodejs --command './tests/run.sh'
-
-# or individually
-nix-shell -p go  --command 'go test ./...'
-nix-shell -p nodejs --command 'node tests/ui_i18n.test.mjs'
+nix flake check        # everything
+# or individually, inside the dev shell:
+nix develop -c go test ./...
+nix develop -c go vet ./...
+nix develop -c node tests/ui_i18n.test.mjs
 ```
 
 ---
@@ -171,6 +180,15 @@ nix-shell -p nodejs --command 'node tests/ui_i18n.test.mjs'
 
 ## Testing (overview)
 
+All of the below run under `nix flake check` (needs the go + nodejs from `nix
+develop`; CGO is disabled by default):
+
+```bash
+nix flake check     # go vet, go test, UI/i18n tests, gofmt — all at once
+```
+
+Individually, inside `nix develop`:
+
 ```bash
 go vet ./...        # static analysis
 go test ./...       # Go unit tests (36 tests)
@@ -181,8 +199,11 @@ node tests/ui_i18n.test.mjs   # UI/i18n tests (26 assertions)
 
 ## Contributing
 
-- Build and test with `CGO_ENABLED=0` (no gcc needed) inside `nix-shell -p go nodejs`.
-- Run `./tests/run.sh` before finishing, and add tests for new code.
+- Build and test inside the flake dev shell (`nix develop`) — go + nodejs with
+  `CGO_ENABLED=0` by default (no gcc needed).
+- Run `nix flake check` before finishing, and add tests for new code.
+- Run `nix fmt flake.nix` to keep the Nix code alejandra-formatted.
+- Run `nix run .#smoke` for a full build + API round-trip (needs no llama-server).
 - Keep the stdlib-only, minimal style; never break the `buildExecStart` ordering invariant.
 - Bilingual UI: add every new string to the `I18N` table (`en` + `ru`) or the UI/i18n test breaks.
 
