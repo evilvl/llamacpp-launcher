@@ -1,9 +1,6 @@
 # llama-cpp-launcher
 
 Lightweight, zero-dependency Go web UI to manage a [`llama.cpp`](https://github.com/ggml-org/llama.cpp) server through a single systemd unit. Pick a model, tweak flags in a form generated from the binary's own `--help`, and start / stop / restart / inspect health — all from the browser. Configuration is stored per-model as a `KEY=value` file.
-
-> Альтернатива `configure-llama-cpp` на Go: один веб-интерфейс, ноль внешних зависимостей (только stdlib), флаги подставляются из `llama-server --help`.
-
 ---
 
 ## Contents
@@ -14,8 +11,11 @@ Lightweight, zero-dependency Go web UI to manage a [`llama.cpp`](https://github.
 - [Build & run](#build--run)
 - [API](#api)
 - [i18n / Localization](#i18n--localization)
+- [Security](#security)
 - [Testing](#testing)
 - [Deployment](#deployment)
+- [Contributing](#contributing)
+- [Roadmap](#roadmap)
 
 ---
 
@@ -24,6 +24,7 @@ Lightweight, zero-dependency Go web UI to manage a [`llama.cpp`](https://github.
 - **Dynamic flag forms** — flag list, kinds (toggle / enum / value), choices and defaults are parsed at runtime from `llama-server --help`. No code changes when llama.cpp adds a new flag.
 - **Per-model config** — model path + a map of active flags, saved as `/etc/llama-cpp/configs/<model>.conf` (or `LLAMA_CONFIG_DIR`).
 - **systemd integration** — builds a unit, writes it atomically, `enable --now`, waits for `/health`, then runs an inference health-test.
+- **Model presets** — four built-in launch presets (`fast-streaming`, `large-context`, `cpu-only`, `vram-friendly`); one-click form fill from any preset.
 - **Health & logs** — polls `/health`, runs a test `POST /v1/chat/completions`, shows `journalctl` output.
 - **Bilingual UI** — English (default) and Russian; language is remembered in `localStorage` and can be extended.
 - **Single binary, stdlib only** — no `go mod download` of third-party packages, fast builds, trivial to vendor.
@@ -50,6 +51,7 @@ The service unit `ExecStart` is built as ordered segments: `binary`, `-m model`,
 |------|---------|
 | `main.go` | CLI flags, env wiring, HTTP routes, embedded UI |
 | `config.go` | `Config`, default flags, `parseConfigFile`, atomic `save`, `buildExecStart` |
+| `presets.go` | Built-in launch presets: `Preset` type, templates, `findPreset`, `apply` |
 | `flags.go` | `--help` parser: `Kind` (toggle/enum/value), choices, sorting |
 | `service.go` | unit generation, start/stop/restart, health wait, inference test |
 | `discover.go` | recursive `.gguf` discovery in `MODEL_ROOT`, human-readable sizes |
@@ -101,6 +103,7 @@ Open <http://localhost:8080>.
 | `GET` | `/` | The web UI (embedded) |
 | `GET` | `/api/version` | Version / service name |
 | `GET` | `/api/flags` | Full flag list with kinds and defaults |
+| `GET` | `/api/presets` | Built-in launch presets |
 | `GET` | `/api/models` | Available `.gguf` models |
 | `GET` | `/api/config?model=...` | Current config (model + flags + extra) for a model |
 | `POST` | `/api/config` | Save config: `{"model","flags","extra"}` |
@@ -153,6 +156,20 @@ nix-shell -p nodejs --command 'node tests/ui_i18n.test.mjs'
 
 ---
 
+## Security
+
+- **Network exposure.** The web UI binds `127.0.0.1` by default; the model
+  service (`--host`) defaults to `0.0.0.0`. Before exposing either to a LAN or
+  the internet, put it behind a reverse proxy with authentication and review the
+  firewall. The deploy unit produced by `deploy.sh` explicitly binds `0.0.0.0` —
+  only run it on a trusted host.
+- **API keys.** `--api-key` is written into the systemd unit and sent as an
+  `Authorization: Bearer` header. Never log it and keep it out of response bodies.
+- **Raw extras.** `__extra__` is appended verbatim to `ExecStart` as shell — only
+  set it to values you control.
+
+---
+
 ## Deployment
 
 `deploy.sh` uploads the built binary and installs a systemd unit on a remote host. It requires `sshpass` + `openssh` + `go` in `PATH` (use `nix-shell -p sshpass openssh go`).
@@ -179,6 +196,31 @@ Exposing the web UI to a network requires a reverse proxy / firewall review — 
 
 ```bash
 go vet ./...        # static analysis
-go test ./...       # Go unit tests (22 tests)
+go test ./...       # Go unit tests (36 tests)
 node tests/ui_i18n.test.mjs   # UI/i18n tests (26 assertions)
 ```
+
+---
+
+## Contributing
+
+- Build and test with `CGO_ENABLED=0` (no gcc needed) inside `nix-shell -p go nodejs`.
+- Run `./tests/run.sh` before finishing, and add tests for new code.
+- Keep the stdlib-only, minimal style; never break the `buildExecStart` ordering invariant.
+- Bilingual UI: add every new string to the `I18N` table (`en` + `ru`) or the UI/i18n test breaks.
+
+---
+
+## Roadmap
+
+### Done
+
+- **Unit portability** — NVIDIA settings are now best-effort: detected via `nvidia-smi`, logged if absent, optionally installed. AMD / CPU-only backends work.
+- **Model presets / templates** — four built-in presets (`fast-streaming`, `large-context`, `cpu-only`, `vram-friendly`) with one-click form fill.
+
+### Upcoming
+
+- **Config import / export** — share configurations as JSON or `.conf`.
+- **Batch model management** — duplicate, rename, and delete configs.
+- **Health dashboard** — inference latency and token-speed metrics.
+- **More languages** — extend the UI beyond English and Russian.

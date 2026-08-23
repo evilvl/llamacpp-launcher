@@ -1,8 +1,14 @@
 package main
 
 import (
+	"io"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 func segContains(segs []string, want string) bool {
@@ -142,5 +148,123 @@ func TestParseConfigFileMissingReturnsDefaults(t *testing.T) {
 	}
 	if cfg.Flags["--host"] != "0.0.0.0" {
 		t.Errorf("default host missing: %q", cfg.Flags["--host"])
+	}
+}
+
+func portFromURL(u string) int {
+	_, port, _ := net.SplitHostPort(strings.TrimPrefix(u, "http://"))
+	return mustAtoi(port)
+}
+
+func mustAtoi(s string) int {
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return 0
+	}
+	return n
+}
+
+func TestSanitize(t *testing.T) {
+	cases := map[string]string{
+		"/opt/models/foo.gguf": "_opt_models_foo.gguf",
+		"a\\b:c d":             "a_b_c_d",
+		"":                     "",
+	}
+	for in, want := range cases {
+		if got := sanitize(in); got != want {
+			t.Errorf("sanitize(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestWaitForHealthSuccess(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	if err := waitForHealth("127.0.0.1", portFromURL(srv.URL), 5); err != nil {
+		t.Fatalf("waitForHealth = %v, want nil", err)
+	}
+}
+
+func TestWaitForHealthTimeout(t *testing.T) {
+	// Server answers 503 forever -> waitForHealth must give up at the deadline.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer srv.Close()
+
+	done := make(chan error, 1)
+	go func() { done <- waitForHealth("127.0.0.1", portFromURL(srv.URL), 1) }()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatalf("waitForHealth = nil, want timeout error")
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatalf("waitForHealth did not return within 10s")
+	}
+}
+
+func TestInferenceTestSuccess(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, `{"choices":[{"message":{"content":"LLAMA_OK"}}],"timings":{"prediction_per_second":42.0}}`)
+	}))
+	defer srv.Close()
+
+	tmp := t.TempDir()
+	app = appConfig{ConfigDir: tmp, WaitTimeout: 5}
+	cfg := defaultConfig("/opt/models/m.gguf")
+	cfg.Flags["--port"] = strconv.Itoa(portFromURL(srv.URL))
+	if err := cfg.save(); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	res, err := inferenceTest(cfg.Model)
+	if err != nil {
+		t.Fatalf("inferenceTest err = %v", err)
+	}
+	if res["content"] != "LLAMA_OK" {
+		t.Fatalf("content = %v, want LLAMA_OK", res["content"])
+	}
+}
+
+func TestInferenceTestHTTPError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+		_, _ = io.WriteString(w, "nope")
+	}))
+	defer srv.Close()
+
+	tmp := t.TempDir()
+	app = appConfig{ConfigDir: tmp, WaitTimeout: 5}
+	cfg := defaultConfig("/opt/models/m.gguf")
+	cfg.Flags["--port"] = strconv.Itoa(portFromURL(srv.URL))
+	if err := cfg.save(); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	_, err := inferenceTest(cfg.Model)
+	if err == nil {
+		t.Fatalf("inferenceTest err = nil, want HTTP error")
+	}
+}
+
+func TestInferenceTestConnectFailure(t *testing.T) {
+	// Nothing is listening -> inferenceTest must return without panicking.
+	tmp := t.TempDir()
+	app = appConfig{ConfigDir: tmp, WaitTimeout: 5}
+	cfg := defaultConfig("/opt/models/m.gguf")
+	cfg.Flags["--port"] = "1"
+	if err := cfg.save(); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	res, err := inferenceTest(cfg.Model)
+	if err != nil {
+		t.Fatalf("connect failure returns nil error, got %v", err)
+	}
+	if _, ok := res["error"]; !ok {
+		t.Fatalf("expected error key in result, got %v", res)
 	}
 }

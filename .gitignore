@@ -1,5 +1,8 @@
 # Compiled binary
 /llama-cpp-webui
+
+# Project agent manual (root-level, kept out of version control)
+/AGENTS.md
 *.exe
 *.out
 
@@ -10,3 +13,6 @@
 /dist
 /node_modules
 /tmp/
+
+# Agent workspace (plan, changelog, manual) — never commit
+/opencode/

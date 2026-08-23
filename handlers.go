@@ -54,6 +54,10 @@ func handleFlags(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, sortFlags(appFlags))
 }
 
+func handlePresets(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, presets)
+}
+
 func handleConfigGet(w http.ResponseWriter, r *http.Request) {
 	model := r.URL.Query().Get("model")
 	if model == "" {
@@ -82,9 +86,9 @@ func handleConfigGet(w http.ResponseWriter, r *http.Request) {
 
 func handleConfigSave(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Model string            `json:"model"`
-		Flags map[string]string `json:"flags"`
-		Extra string            `json:"extra"`
+		Model string         `json:"model"`
+		Flags map[string]any `json:"flags"`
+		Extra string         `json:"extra"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json: "+err.Error())
@@ -96,7 +100,7 @@ func handleConfigSave(w http.ResponseWriter, r *http.Request) {
 	}
 	cfg := defaultConfig(req.Model)
 	for k, v := range req.Flags {
-		cfg.Flags[k] = v
+		cfg.Flags[k] = formatFlagValue(v)
 	}
 	if strings.TrimSpace(req.Extra) != "" {
 		cfg.Flags["__extra__"] = req.Extra
@@ -119,24 +123,6 @@ func handleStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	st, err := startService(model)
-	if err != nil {
-		writeError(w, http.StatusServiceUnavailable, err.Error())
-		return
-	}
-	writeJSON(w, st)
-}
-
-func handleStop(w http.ResponseWriter, r *http.Request) {
-	st, err := stopService()
-	if err != nil {
-		writeError(w, http.StatusServiceUnavailable, err.Error())
-		return
-	}
-	writeJSON(w, st)
-}
-
-func handleRestart(w http.ResponseWriter, r *http.Request) {
-	st, err := restartService()
 	if err != nil {
 		writeError(w, http.StatusServiceUnavailable, err.Error())
 		return

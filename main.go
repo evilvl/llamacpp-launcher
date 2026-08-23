@@ -63,13 +63,14 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /", handleIndex)
 	mux.HandleFunc("GET /api/flags", handleFlags)
+	mux.HandleFunc("GET /api/presets", handlePresets)
 	mux.HandleFunc("GET /api/models", handleModels)
 	mux.HandleFunc("GET /api/config", handleConfigGet)
 	mux.HandleFunc("POST /api/config", handleConfigSave)
 	mux.HandleFunc("GET /api/status", handleStatus)
 	mux.HandleFunc("POST /api/start", handleStart)
-	mux.HandleFunc("POST /api/stop", handleStop)
-	mux.HandleFunc("POST /api/restart", handleRestart)
+	mux.HandleFunc("POST /api/stop", serviceAction(stopService))
+	mux.HandleFunc("POST /api/restart", serviceAction(restartService))
 	mux.HandleFunc("GET /api/logs", handleLogs)
 	mux.HandleFunc("POST /api/health-test", handleHealthTest)
 	mux.HandleFunc("GET /api/version", handleVersion)
@@ -106,8 +107,4 @@ func envInt(key string, def int) int {
 		}
 	}
 	return def
-}
-
-func itoa(n int) string {
-	return strconv.Itoa(n)
 }

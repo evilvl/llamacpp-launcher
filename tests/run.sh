@@ -3,6 +3,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# Pure-Go build: no gcc/cgo needed, works in a bare nix-shell.
+export CGO_ENABLED=0
+
 echo "===== Go tests ====="
 go test ./...
 

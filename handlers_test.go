@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -94,6 +95,48 @@ func TestSaveInvalidJSON(t *testing.T) {
 	handleConfigSave(rec, httptest.NewRequest(http.MethodPost, "/api/config", strings.NewReader("{not json")))
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", rec.Code)
+	}
+}
+
+func TestServiceActionWrapper(t *testing.T) {
+	do := func() (map[string]any, error) {
+		return map[string]any{"SubState": "active", "MainPID": "42"}, nil
+	}
+	rec := httptest.NewRecorder()
+	serviceAction(do)(rec, httptest.NewRequest(http.MethodPost, "/api/stop", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("success code = %d, body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"SubState":"active"`) {
+		t.Fatalf("body missing payload: %s", rec.Body.String())
+	}
+
+	doErr := func() (map[string]any, error) { return nil, errors.New("boom") }
+	rec = httptest.NewRecorder()
+	serviceAction(doErr)(rec, httptest.NewRequest(http.MethodPost, "/api/restart", nil))
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("error code = %d, want 503", rec.Code)
+	}
+}
+
+func TestConfigSaveAcceptsNumbers(t *testing.T) {
+	app = appConfig{ConfigDir: t.TempDir()}
+	body := `{"model":"/opt/models/m.gguf","flags":{"--port":9999,"--ctx-size":4096,"--flash-attn":"on"}}`
+	rec := httptest.NewRecorder()
+	handleConfigSave(rec, httptest.NewRequest(http.MethodPost, "/api/config", strings.NewReader(body)))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("save code = %d body=%s", rec.Code, rec.Body.String())
+	}
+	data, err := os.ReadFile(configPathFor("/opt/models/m.gguf"))
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	s := string(data)
+	if !strings.Contains(s, "--port=9999") || !strings.Contains(s, "--ctx-size=4096") {
+		t.Fatalf("numeric flags not persisted: %s", s)
+	}
+	if !strings.Contains(s, `--flash-attn="on"`) {
+		t.Fatalf("string flag not persisted quoted: %s", s)
 	}
 }
 

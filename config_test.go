@@ -52,6 +52,31 @@ func TestParseSaveRoundTrip(t *testing.T) {
 	}
 }
 
+func TestLoadActiveConfig(t *testing.T) {
+	tmp := t.TempDir()
+	app = appConfig{ConfigDir: tmp, WaitTimeout: 120, ModelRoot: "/opt/models"}
+
+	model := "/opt/models/qwen2.5-7b-instruct-q4_k_m.gguf"
+
+	// No config on disk -> pure defaults.
+	got := loadActiveConfig(model)
+	if got.Flags["--port"] != "8080" || got.Flags["--host"] != "0.0.0.0" {
+		t.Fatalf("expected defaults, got %+v", got.Flags)
+	}
+
+	// Persist a config, then load it back.
+	orig := defaultConfig(model)
+	orig.Flags["--port"] = "9999"
+	orig.Flags["--api-key"] = "secret"
+	if err := orig.save(); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	got = loadActiveConfig(model)
+	if got.Flags["--port"] != "9999" || got.Flags["--api-key"] != "secret" {
+		t.Fatalf("loaded config mismatch: %+v", got.Flags)
+	}
+}
+
 func TestDiscoverModels(t *testing.T) {
 	root := t.TempDir()
 	// создаем .gguf и лишний .part (должен игнорироваться)
@@ -99,6 +124,10 @@ func TestGenerateUnit(t *testing.T) {
 		"--ctx-size 131072",
 		"--api-key testkey",
 		"WantedBy=multi-user.target",
+		// NVIDIA power-management is best-effort and portable:
+		"ExecStartPre=-/bin/sh -c",          // non-fatal
+		"nvidia-smi not found",              // reports when absent
+		"LLAMA_INSTALL_NVIDIA_TOOLS",        // optional auto-install hook
 	} {
 		if !strings.Contains(unit, need) {
 			t.Errorf("unit missing %q\n---\n%s", need, unit)

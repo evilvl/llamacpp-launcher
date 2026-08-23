@@ -39,6 +39,22 @@ func defaultConfig(model string) *Config {
 	}
 }
 
+// formatFlagValue приведёт значение флага из JSON (строка/число/bool) к строке.
+func formatFlagValue(v any) string {
+	switch s := v.(type) {
+	case string:
+		return s
+	case float64:
+		return strconv.FormatFloat(s, 'f', -1, 64)
+	case bool:
+		return strconv.FormatBool(s)
+	case nil:
+		return ""
+	default:
+		return fmt.Sprint(v)
+	}
+}
+
 // configPath возвращает путь к файлу конфига для модели.
 func configPathFor(model string) string {
 	base := sanitize(strings.TrimSuffix(filepath.Base(model), ".gguf"))
@@ -46,6 +62,19 @@ func configPathFor(model string) string {
 		base = "model"
 	}
 	return filepath.Join(app.ConfigDir, base+".conf")
+}
+
+// loadActiveConfig возвращает конфиг для модели: базовые дефолты, подтянутые
+// с диска, если файл конфига существует (иначе — чистые дефолты).
+func loadActiveConfig(model string) *Config {
+	p := configPathFor(model)
+	if !fileExists(p) {
+		return defaultConfig(model)
+	}
+	if c, err := parseConfigFile(p, model); err == nil {
+		return c
+	}
+	return defaultConfig(model)
 }
 
 // unquoteShell извлекает значение из shell-строки: "двойные", 'одинарные' или без кавычек.

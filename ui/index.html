@@ -34,6 +34,9 @@
   .main{padding:18px 22px;overflow:auto}
   .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
   .field{display:flex;flex-direction:column;gap:4px}
+  .preset-row{display:flex;align-items:center;gap:8px;margin:4px 0 12px}
+  .preset-row label{font-size:12px;color:var(--dim);margin:0}
+  .preset-row select{background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-family:var(--mono);font-size:12px}
   .field label{font-size:12px;color:var(--dim)}
   .field input{padding:7px 9px;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-family:var(--mono);font-size:13px}
   .row-actions{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}
@@ -74,8 +77,14 @@
   <section class="main">
     <div id="empty" class="notice">No models available. Place a .gguf file in the model directory.</div>
     <div id="editor" class="hidden">
-      <div class="info" id="sel-path"></div>
-      <div class="grid" id="form"></div>
+        <div class="info" id="sel-path"></div>
+        <div class="preset-row">
+          <label id="presets-label">Presets</label>
+          <select id="presets" class="lang-select" onchange="onPreset()">
+            <option value="">—</option>
+          </select>
+        </div>
+        <div class="grid" id="form"></div>
 
       <div class="row-actions">
         <button id="btn-generate" class="primary" onclick="doStart()">▶ Generate &amp; Start</button>
@@ -102,17 +111,21 @@ const I18N = {
     search: "Search models",
     empty_notice: "No models available. Place a .gguf file in the model directory.",
     no_models: "No models found",
+    l_presets: "Presets",
     badge_config: "config",
     badge_none: "no config",
     l_host: "Bind address",
     l_port: "HTTP port",
     l_api_key: "API key",
+    l_gpu_layers: "GPU layers",
     l_wait_timeout: "Health wait (s)",
     l_context_size: "Context (tokens)",
     l_parallel: "Parallel sequences",
     l_batch_size: "Batch size",
     l_ubatch_size: "Unpadded batch",
+    l_fit: "Fit to VRAM",
     l_fit_target: "VRAM margin (MiB)",
+    l_fit_ctx: "Fit context (tokens)",
     l_cache_k: "KV cache type (K)",
     l_cache_v: "KV cache type (V)",
     l_flash_attn: "Flash attention",
@@ -136,17 +149,21 @@ const I18N = {
     search: "Поиск моделей",
     empty_notice: "Нет доступных моделей. Положите .gguf в модельный каталог.",
     no_models: "Модели не найдены",
+    l_presets: "Пресеты",
     badge_config: "config",
     badge_none: "no config",
     l_host: "Адрес привязки",
     l_port: "Порт HTTP-сервера",
     l_api_key: "API-ключ",
+    l_gpu_layers: "Слои GPU",
     l_wait_timeout: "Ожидание /health, сек",
     l_context_size: "Контекст, токены",
     l_parallel: "Параллельные последовательности",
     l_batch_size: "Batch size",
     l_ubatch_size: "Unpadded batch",
+    l_fit: "Fit в VRAM",
     l_fit_target: "Запас VRAM, MiB",
+    l_fit_ctx: "Контекст fit, токены",
     l_cache_k: "Кэш ключей",
     l_cache_v: "Кэш значений",
     l_flash_attn: "Flash attention",
@@ -200,26 +217,30 @@ function renderI18n() {
   document.getElementById("btn-infer").innerHTML = t("btn_infer");
   const h = document.querySelector("main h2");
   if (h) h.textContent = t("h_service");
+  const pl = document.getElementById("presets-label");
+  if (pl) pl.textContent = t("l_presets");
   if (CURRENT) refreshStatus(); // update state label to current language
 }
 // -------------------------------------------------------------------------
 
 const PARAMS=[
-  ["HOST","l_host"],
-  ["PORT","l_port"],
-  ["API_KEY","l_api_key"],
-  ["LLAMA_WAIT_TIMEOUT","l_wait_timeout"],
-  ["CONTEXT_SIZE","l_context_size"],
-  ["PARALLEL","l_parallel"],
-  ["BATCH_SIZE","l_batch_size"],
-  ["UBATCH_SIZE","l_ubatch_size"],
-  ["FIT_TARGET_MIB","l_fit_target"],
-  ["CACHE_TYPE_K","l_cache_k"],
-  ["CACHE_TYPE_V","l_cache_v"],
-  ["FLASH_ATTN","l_flash_attn"],
-  ["NUMA","l_numa"],
-  ["CPU_THREADS","l_cpu_threads"],
-  ["CPU_THREADS_BATCH","l_cpu_threads_batch"]
+  ["--host","l_host"],
+  ["--port","l_port"],
+  ["--api-key","l_api_key"],
+  ["--gpu-layers","l_gpu_layers"],
+  ["--ctx-size","l_context_size"],
+  ["--parallel","l_parallel"],
+  ["--n-batch","l_batch_size"],
+  ["--ubatch-size","l_ubatch_size"],
+  ["--fit","l_fit"],
+  ["--fit-target","l_fit_target"],
+  ["--fit-ctx","l_fit_ctx"],
+  ["--cache-type-k","l_cache_k"],
+  ["--cache-type-v","l_cache_v"],
+  ["--flash-attn","l_flash_attn"],
+  ["--numa","l_numa"],
+  ["--threads","l_cpu_threads"],
+  ["--threads-batch","l_cpu_threads_batch"]
 ];
 
 async function api(url,opts){const r=await fetch(url,opts);const t=await r.text();try{return JSON.parse(t)}catch(e){return{text:t}}}
@@ -275,6 +296,27 @@ function buildForm(cfg){
     box.appendChild(f);
   });
 }
+
+let PRESETS=[];
+async function loadPresets(){
+  const r=await jget("/api/presets");
+  PRESETS=Array.isArray(r)?r:(r.presets||[]);
+  const sel=document.getElementById("presets");
+  sel.innerHTML='<option value="">—</option>';
+  PRESETS.forEach(p=>{
+    const o=document.createElement("option");
+    o.value=p.name; o.textContent=p.title; o.title=p.desc;
+    sel.appendChild(o);
+  });
+}
+function onPreset(){
+  const sel=document.getElementById("presets");
+  const p=PRESETS.find(x=>x.name===sel.value);
+  if(!p)return;
+  document.querySelectorAll("#form input").forEach(i=>{
+    if(p.flags&&Object.prototype.hasOwnProperty.call(p.flags,i.dataset.key)) i.value=p.flags[i.dataset.key];
+  });
+}
 async function saveCfg(){
   if(!CURRENT)return;
   const cfg={model:CURRENT.path};
@@ -319,6 +361,7 @@ async function init(){
   renderI18n();
   await refreshStatus();
   await loadModels();
+  await loadPresets();
   setInterval(refreshStatus,5000);
   if(CURRENT)setInterval(refreshLogs,5000);
 }

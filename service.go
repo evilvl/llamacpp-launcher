@@ -40,8 +40,10 @@ Environment="GGML_CUDA_FORCE_MMQ=0"
 Environment="GGML_CUDA_NO_PEER_COPY=1"
 Environment="GGML_CUDA_NO_VMM=0"
 
-ExecStartPre=/usr/bin/nvidia-smi -pm 1
-ExecStartPre=-/bin/sh -c '/usr/bin/nvidia-smi -pl 320 2>/dev/null || true'
+# NVIDIA power-management is best-effort: applied only when nvidia-smi exists.
+# On AMD/CPU hosts it logs a note and continues (never hard-fails). Set
+# LLAMA_INSTALL_NVIDIA_TOOLS to a command to auto-install the tools when missing.
+ExecStartPre=-/bin/sh -c 'if command -v nvidia-smi >/dev/null 2>&1; then /usr/bin/nvidia-smi -pm 1; /usr/bin/nvidia-smi -pl 320 2>/dev/null || true; elif [ -n "$LLAMA_INSTALL_NVIDIA_TOOLS" ]; then eval "$LLAMA_INSTALL_NVIDIA_TOOLS" || true; else echo "[llama-coder] nvidia-smi not found - CUDA acceleration disabled"; fi'
 
 ExecStart=` + strings.Join(c.buildExecStart(app.LlamaServer), " \\\n") + `
 
@@ -70,12 +72,7 @@ func writeUnit(c *Config) error {
 
 // startService загружает/генерирует юнит, включает и запускает службу, ждёт /health.
 func startService(model string) (map[string]any, error) {
-	cfg := defaultConfig(model)
-	if p := configPathFor(model); fileExists(p) {
-		if c, err := parseConfigFile(p, model); err == nil {
-			cfg = c
-		}
-	}
+	cfg := loadActiveConfig(model)
 	if err := writeUnit(cfg); err != nil {
 		return status(), err
 	}
@@ -112,6 +109,19 @@ func restartService() (map[string]any, error) {
 		return status(), err
 	}
 	return status(), nil
+}
+
+// serviceAction оборачивает обработчики действий без модели (stop/restart):
+// вызывает переданную функцию и сериализует результат как JSON.
+func serviceAction(do func() (map[string]any, error)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		st, err := do()
+		if err != nil {
+			writeError(w, http.StatusServiceUnavailable, err.Error())
+			return
+		}
+		writeJSON(w, st)
+	}
 }
 
 // serviceStatus читает состояние службы через systemctl show.
@@ -181,12 +191,7 @@ func waitForHealth(host string, port, timeout int) error {
 
 // inferenceTest отправляет тестовый запрос к API и разбирает ответ.
 func inferenceTest(model string) (map[string]any, error) {
-	cfg := defaultConfig(model)
-	if p := configPathFor(model); fileExists(p) {
-		if c, err := parseConfigFile(p, model); err == nil {
-			cfg = c
-		}
-	}
+	cfg := loadActiveConfig(model)
 
 	body, _ := json.Marshal(map[string]any{
 		"model":       "local-model",
