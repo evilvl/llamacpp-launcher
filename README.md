@@ -57,7 +57,6 @@ The service unit `ExecStart` is built as ordered segments: `binary`, `-m model`,
 | `discover.go` | recursive `.gguf` discovery in `MODEL_ROOT`, human-readable sizes |
 | `handlers.go` | JSON endpoints for models / config / flags / status / logs |
 | `ui/index.html` | embedded single-page UI + i18n table |
-| `deploy.sh` | remote deployment (scp + remote systemd unit) |
 | `smoke.sh` | local build + run + curl smoke test |
 | `tests/` | Go unit tests + `tests/ui_i18n.test.mjs` (Node) + `tests/run.sh` runner |
 
@@ -160,35 +159,13 @@ nix-shell -p nodejs --command 'node tests/ui_i18n.test.mjs'
 
 - **Network exposure.** The web UI binds `127.0.0.1` by default; the model
   service (`--host`) defaults to `0.0.0.0`. Before exposing either to a LAN or
-  the internet, put it behind a reverse proxy with authentication and review the
-  firewall. The deploy unit produced by `deploy.sh` explicitly binds `0.0.0.0` —
-  only run it on a trusted host.
+   the internet, put it behind a reverse proxy with authentication and review the
+   firewall. The production systemd unit explicitly binds `0.0.0.0` —
+   only run it on a trusted host.
 - **API keys.** `--api-key` is written into the systemd unit and sent as an
   `Authorization: Bearer` header. Never log it and keep it out of response bodies.
 - **Raw extras.** `__extra__` is appended verbatim to `ExecStart` as shell — only
   set it to values you control.
-
----
-
-## Deployment
-
-`deploy.sh` uploads the built binary and installs a systemd unit on a remote host. It requires `sshpass` + `openssh` + `go` in `PATH` (use `nix-shell -p sshpass openssh go`).
-
-```bash
-nix-shell -p sshpass openssh go --command './deploy.sh'
-```
-
-The unit (see `deploy.sh`) runs `llama-cpp-webui` with:
-
-```ini
-Environment=LLAMA_MODEL_ROOT=/opt/models
-Environment=LLAMA_SERVER_BIN=/opt/llama-bin/llama-server
-Environment=LLAMA_SERVICE_NAME=llama-coder
-Environment=LLAMA_CONFIG_DIR=/etc/llama-cpp/configs
-Environment=LLAMA_WAIT_TIMEOUT=600
-```
-
-Exposing the web UI to a network requires a reverse proxy / firewall review — the default binds `127.0.0.1` only.
 
 ---
 
