@@ -1,0 +1,246 @@
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"os/exec"
+	"strconv"
+	"strings"
+	"time"
+)
+
+// runCmd выполняет команду и возвращает объединённый stdout+stderr.
+var runCmd = func(name string, args ...string) (string, error) {
+	cmd := exec.Command(name, args...)
+	out, err := cmd.CombinedOutput()
+	return string(out), err
+}
+
+// generateUnit строит содержимое systemd-юнита для модели (аналог generate_service из bash).
+func generateUnit(c *Config) string {
+	unit := `[Unit]
+Description=llama.cpp LLM Coder GPU + CPU
+After=network-online.target
+Wants=network-online.target
+### OPTIMIZED: защита от частых рестартов
+StartLimitIntervalSec=30
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=root
+
+Environment="CUDA_VISIBLE_DEVICES=0"
+Environment="GGML_CUDA_GRAPHS=1"
+Environment="GGML_CUDA_FORCE_MMQ=0"
+Environment="GGML_CUDA_NO_PEER_COPY=1"
+Environment="GGML_CUDA_NO_VMM=0"
+
+ExecStartPre=/usr/bin/nvidia-smi -pm 1
+ExecStartPre=-/bin/sh -c '/usr/bin/nvidia-smi -pl 320 2>/dev/null || true'
+
+ExecStart=` + strings.Join(c.buildExecStart(app.LlamaServer), " \\\n") + `
+
+Restart=on-failure
+RestartSec=10
+KillSignal=SIGTERM
+TimeoutStopSec=30
+LimitNOFILE=1048576
+LimitMEMLOCK=infinity
+OOMScoreAdjust=-100
+
+[Install]
+WantedBy=multi-user.target
+`
+	return unit
+}
+
+// writeUnit атомарно записывает юнит в /etc/systemd/system.
+func writeUnit(c *Config) error {
+	tmp := app.ServiceFile + ".tmp"
+	if err := os.WriteFile(tmp, []byte(generateUnit(c)), 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmp, app.ServiceFile)
+}
+
+// startService загружает/генерирует юнит, включает и запускает службу, ждёт /health.
+func startService(model string) (map[string]any, error) {
+	cfg := defaultConfig(model)
+	if p := configPathFor(model); fileExists(p) {
+		if c, err := parseConfigFile(p, model); err == nil {
+			cfg = c
+		}
+	}
+	if err := writeUnit(cfg); err != nil {
+		return status(), err
+	}
+
+	if _, err := runCmd("systemctl", "daemon-reload"); err != nil {
+		return status(), err
+	}
+	if _, err := runCmd("systemctl", "enable", app.ServiceName); err != nil {
+		return status(), err
+	}
+	if _, err := runCmd("systemctl", "start", app.ServiceName); err != nil {
+		return status(), err
+	}
+
+	werr := waitForHealth(hostFromConfig(cfg), portFromConfig(cfg), app.WaitTimeout)
+
+	st := status()
+	st["started_model"] = cfg.Model
+	st["wait_error"] = nullStr(werr)
+	return st, werr
+}
+
+// stopService останавливает службу.
+func stopService() (map[string]any, error) {
+	if _, err := runCmd("systemctl", "stop", app.ServiceName); err != nil {
+		return status(), err
+	}
+	return status(), nil
+}
+
+// restartService перезапускает службу.
+func restartService() (map[string]any, error) {
+	if _, err := runCmd("systemctl", "restart", app.ServiceName); err != nil {
+		return status(), err
+	}
+	return status(), nil
+}
+
+// serviceStatus читает состояние службы через systemctl show.
+func serviceStatus() (map[string]any, error) {
+	out, err := runCmd("systemctl", "show",
+		"-p", "ActiveState", "-p", "SubState",
+		"-p", "UnitFileState", "-p", "LoadState",
+		"-p", "MainPID", "-p", "NRestarts",
+		"--value", app.ServiceName)
+	if err != nil {
+		return status(), err
+	}
+	m := map[string]any{}
+	for _, line := range strings.Split(out, "\n") {
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, " ", 2)
+		if len(parts) == 2 {
+			m[parts[0]] = parts[1]
+		}
+	}
+	return m, nil
+}
+
+// status — безопасная обёртка над serviceStatus (не падает, если systemd недоступен).
+func status() map[string]any {
+	m, err := serviceStatus()
+	if err != nil {
+		return map[string]any{"error": err.Error()}
+	}
+	return m
+}
+
+// readLogs выводит последние N строк журнала службы.
+func readLogs(n int) (string, error) {
+	if n <= 0 {
+		n = 100
+	}
+	return runCmd("journalctl", "-u", app.ServiceName, "-n", strconv.Itoa(n), "--no-pager")
+}
+
+// waitForHealth ожидает, пока /health не вернёт 200, или таймаут.
+func waitForHealth(host string, port, timeout int) error {
+	target := port
+	if port == 0 {
+		target = 8080
+	}
+	deadline := time.Now().Add(time.Duration(timeout) * time.Second)
+	url := fmt.Sprintf("http://127.0.0.1:%d/health", target)
+
+	for {
+		client := &http.Client{Timeout: 2 * time.Second}
+		resp, err := client.Get(url)
+		if err == nil {
+			resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				return nil
+			}
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("сервер не стал healthy за %d сек (http=%v)", timeout, err)
+		}
+		time.Sleep(2 * time.Second)
+	}
+}
+
+// inferenceTest отправляет тестовый запрос к API и разбирает ответ.
+func inferenceTest(model string) (map[string]any, error) {
+	cfg := defaultConfig(model)
+	if p := configPathFor(model); fileExists(p) {
+		if c, err := parseConfigFile(p, model); err == nil {
+			cfg = c
+		}
+	}
+
+	body, _ := json.Marshal(map[string]any{
+		"model":       "local-model",
+		"temperature": 0,
+		"max_tokens":  16,
+		"stream":      false,
+		"messages": []map[string]string{
+			{"role": "user", "content": "Reply with exactly: LLAMA_OK"},
+		},
+	})
+
+	url := fmt.Sprintf("http://127.0.0.1:%d/v1/chat/completions", portFromConfig(cfg))
+	req, _ := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	if key := apiKeyFromConfig(cfg); key != "" {
+		req.Header.Set("Authorization", "Bearer "+key)
+	}
+
+	client := &http.Client{Timeout: 180 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return map[string]any{"error": err.Error()}, nil
+	}
+	defer resp.Body.Close()
+
+	raw, _ := io.ReadAll(resp.Body)
+	result := map[string]any{"http": resp.StatusCode}
+	if resp.StatusCode != http.StatusOK {
+		result["raw"] = string(raw)
+		return result, fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+
+	var parsed struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+		Timings map[string]float64 `json:"timings"`
+	}
+	if json.Unmarshal(raw, &parsed) == nil {
+		if len(parsed.Choices) > 0 {
+			result["content"] = parsed.Choices[0].Message.Content
+		}
+		if len(parsed.Timings) > 0 {
+			result["timings"] = parsed.Timings
+		}
+	}
+	return result, nil
+}
+
+func nullStr(err error) any {
+	if err != nil {
+		return err.Error()
+	}
+	return nil
+}

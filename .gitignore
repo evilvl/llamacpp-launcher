@@ -1,0 +1,12 @@
+# Compiled binary
+/llama-cpp-webui
+*.exe
+*.out
+
+# Build / run artifacts
+*.log
+
+# Local scratch
+/dist
+/node_modules
+/tmp/
