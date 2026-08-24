@@ -53,80 +53,27 @@
             '';
           };
 
-          smoke = pkgs.writeShellApplication {
-            name = "smoke";
+           smoke = pkgs.writeShellApplication {
+             name = "smoke";
 
-            runtimeInputs = [
-              pkgs.go
-              pkgs.curl
-              pkgs.python3
-            ];
+             runtimeInputs = [
+               pkgs.go
+             ];
 
-            text = ''
-              set -uo pipefail
-              export CGO_ENABLED=0
+             text = ''
+               set -uo pipefail
+               export CGO_ENABLED=0
 
-              go vet ./...
-              go build -o llamacpp-launcher ./cmd/llamacpp-launcher
+               go vet ./...
+               go build -o llamacpp-launcher ./cmd/llamacpp-launcher
 
-              echo BUILD_OK
+               echo BUILD_OK
 
-              D=$(mktemp -d)
+               go test -tags=integration ./test/e2e/...
 
-              cleanup() {
-                if [ -n "''${P:-}" ]; then
-                  kill "$P" 2>/dev/null || true
-                  wait "$P" 2>/dev/null || true
-                fi
-
-                rm -rf "$D"
-              }
-
-              trap cleanup EXIT
-
-              mkdir -p "$D/models"
-
-              printf 'GGUF' > "$D/models/tiny.gguf"
-
-              export LLAMA_MODEL_ROOT="$D/models"
-              export LLAMA_CONFIG_DIR="$D/configs"
-              export LLAMA_WEB_HOST=127.0.0.1
-              export LLAMA_WEB_PORT=18079
-
-              ./llamacpp-launcher >/tmp/llama_smoke.log 2>&1 &
-              P=$!
-
-              sleep 1
-
-              echo "=== save (flags map + extra) ==="
-
-              body='{"model":"'"$D"'/models/tiny.gguf","flags":{"--port":"8090","--api-key":"abc","--ctx-size":"4096"},"extra":"--verbose --n-batch 512"}'
-
-              curl -s \
-                -XPOST \
-                localhost:18079/api/config \
-                -H 'Content-Type: application/json' \
-                -d "$body"
-
-              echo
-
-              echo "=== config after save (GET) ==="
-
-              curl -s \
-                "localhost:18079/api/config?model=$D/models/tiny.gguf" |
-                python3 -m json.tool
-
-              echo "=== file on disk ==="
-
-              cat "$D/configs/tiny.conf"
-
-              echo "=== server log ==="
-
-              cat /tmp/llama_smoke.log
-
-              echo "smoke done"
-            '';
-          };
+               echo SMOKE_OK
+             '';
+           };
 
           checks = {
             go-vet-and-tests =

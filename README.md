@@ -52,7 +52,8 @@ The service unit `ExecStart` is built as ordered segments: `binary`, `-m model`,
 | `cmd/llamacpp-launcher/*.go` | Go source: `main.go` (CLI flags, env wiring, HTTP routes), `config.go` (`Config`, default flags, atomic `save`, `buildExecStart`), `presets.go`, `flags.go` (`--help` parser), `service.go` (systemd unit + start/stop/restart/health), `discover.go` (`.gguf` discovery), `handlers.go` (JSON endpoints) |
 | `cmd/llamacpp-launcher/ui/index.html` | embedded single-page UI + i18n table (referenced via `//go:embed ui/index.html`) |
 | `flake.nix` | Nix flake: `nix build .` (package), `nix develop` (dev shell), `nix flake check` (go vet + go test + UI/i18n + gofmt), `nix fmt` (nixfmt) |
-| `tests/` | `tests/ui_i18n.test.mjs` (Node) — runs the embedded page in a `vm` sandbox; both run under `nix flake check` |
+| `tests/` | `tests/ui_i18n.test.mjs` (Node) — runs the embedded page in a `vm` sandbox |
+| `test/e2e/` | Integration tests (`//go:build integration`): build the binary, start it, and exercise the HTTP API. Kept separate and build-tagged so `go test ./...` runs only fast unit tests. Run with `go test -tags=integration ./test/e2e/...` |
 
 The Go binary lives under `cmd/` (idiomatic entry-point layout); `go.mod` stays at the repo root and defines the module `llamacpp-launcher`.
 
@@ -143,7 +144,13 @@ Add a string: put the key in `en`, add a `ru` (and any other language) entry, th
 
 ### Tests
 
-Go unit tests (`go test ./...`) cover: shell quoting, config round-trip, model discovery, unit/`buildExecStart` generation, `--help` parsing (kinds / choices / sections), flag sorting, and the HTTP handlers.
+Go unit tests (`go test ./...`) cover: shell quoting, config round-trip, model discovery, unit/`buildExecStart` generation, `--help` parsing (kinds / choices / sections), flag sorting, and the HTTP handlers. Unit tests stay colocated with their source (`*_test.go` next to `*.go`) — the idiomatic Go layout.
+
+Integration tests live in `test/e2e/` and are build-tagged (`//go:build integration`). `TestSmoke` compiles the binary, launches it with `LLAMA_*` env vars, and asserts a full save → get round-trip plus the model / preset / flag endpoints. They are excluded from `go test ./...` so the fast unit suite stays green without a real `llama-server`; run them explicitly:
+
+```bash
+nix develop -c go test -tags=integration ./test/e2e/...
+```
 
 UI/i18n is tested in pure Node (no browser, no npm) — `tests/ui_i18n.test.mjs` loads the page, checks the default is English, verifies RU switching + persistence, fallbacks, and the `<html lang="en">` + `<select id="lang">` dropdown.
 
@@ -151,12 +158,15 @@ Run the whole suite with `nix flake check` — it builds the package and runs
 `go vet` + `go test ./...`, `node tests/ui_i18n.test.mjs`, and a `gofmt` check:
 
 ```bash
-nix flake check        # everything
+nix flake check        # everything (units; integration excluded by build tag)
 # or individually, inside the dev shell:
 nix develop -c go test ./...
+nix develop -c go test -tags=integration ./test/e2e/...
 nix develop -c go vet ./...
 nix develop -c node tests/ui_i18n.test.mjs
 ```
+
+The end-to-end round-trip is also wired into the flake as `nix run .#smoke`, which builds the binary and runs the integration suite (`go test -tags=integration ./test/e2e/...`).
 
 ---
 
