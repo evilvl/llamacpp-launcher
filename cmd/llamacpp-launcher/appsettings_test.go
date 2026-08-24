@@ -69,8 +69,9 @@ func TestSetConfigPathOverrides(t *testing.T) {
 	dir := t.TempDir()
 	app = appConfig{ConfigDir: dir}
 	custom := filepath.Join(dir, "custom.json")
-	setConfigPath(custom)
-	defer setConfigPath("")
+	orig := explicitConfigPath
+	explicitConfigPath = custom
+	defer func() { explicitConfigPath = orig }()
 	if settingsPath() != custom {
 		t.Fatalf("settingsPath = %q, want %q", settingsPath(), custom)
 	}
@@ -202,6 +203,11 @@ func TestHandleSettingsGetIncludesAppFields(t *testing.T) {
 func TestHandleSettingsSavePreservesAppFields(t *testing.T) {
 	app = appConfig{ConfigDir: t.TempDir()}
 	settings = Settings{WebHost: "127.0.0.1", WebPort: 8080, ModelDir: "/m", LlamaServer: "/s"}
+
+	origReexec := applyReexec
+	applyReexec = func(host, port string) {}
+	defer func() { applyReexec = origReexec }()
+
 	rec := httptest.NewRecorder()
 	handleSettingsSave(rec, httptest.NewRequest(http.MethodPost, "/api/settings", strings.NewReader(`{"webHost":"127.0.0.1","webPort":"9090"}`)))
 	if rec.Code != http.StatusOK {
