@@ -386,7 +386,8 @@ async function loadSettings(){
   const s=await jget("/api/settings");
   document.getElementById("set-host").value=s.webHost||"127.0.0.1";
   document.getElementById("set-port").value=s.webPort||8080;
-  document.getElementById("server-url").textContent="http://"+(s.webHost||"127.0.0.1")+":"+(s.webPort||8080);
+  const url=s.boundAddr||("http://"+(s.webHost||"127.0.0.1")+":"+(s.webPort||8080));
+  document.getElementById("server-url").textContent=url;
 }
 async function saveSettings(){
   const host=document.getElementById("set-host").value.trim()||"127.0.0.1";
