@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-//go:embed ui/index.html
+//go:embed ui/index.html ui/styles.css ui/i18n.js ui/app.js
 var uiFS embed.FS
 
 // app is the global configuration (paths, names, timeouts).
@@ -33,6 +33,9 @@ var app = appConfig{}
 func newMux() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /", handleIndex)
+	mux.HandleFunc("GET /styles.css", handleStaticAsset)
+	mux.HandleFunc("GET /i18n.js", handleStaticAsset)
+	mux.HandleFunc("GET /app.js", handleStaticAsset)
 	mux.HandleFunc("GET /api/flags", handleFlags)
 	mux.HandleFunc("GET /api/presets", handlePresets)
 	mux.HandleFunc("GET /api/models", handleModels)

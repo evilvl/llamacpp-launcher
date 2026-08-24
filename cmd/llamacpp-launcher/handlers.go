@@ -18,6 +18,12 @@ func writeError(w http.ResponseWriter, code int, msg string) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"error": msg})
 }
 
+var uiAssets = map[string]string{
+	"styles.css": "text/css; charset=utf-8",
+	"i18n.js":    "application/javascript; charset=utf-8",
+	"app.js":     "application/javascript; charset=utf-8",
+}
+
 func handleIndex(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
 		http.NotFound(w, r)
@@ -29,6 +35,22 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write(b)
+}
+
+func handleStaticAsset(w http.ResponseWriter, r *http.Request) {
+	name := strings.TrimPrefix(r.URL.Path, "/")
+	ctype, ok := uiAssets[name]
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	b, err := uiFS.ReadFile("ui/" + name)
+	if err != nil {
+		http.Error(w, "ui asset missing", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", ctype)
 	_, _ = w.Write(b)
 }
 

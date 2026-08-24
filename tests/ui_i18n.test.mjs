@@ -10,7 +10,10 @@ import vm from 'node:vm';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
-const html = readFileSync(join(ROOT, 'cmd', 'llamacpp-launcher', 'ui', 'index.html'), 'utf8');
+const UI = join(ROOT, 'cmd', 'llamacpp-launcher', 'ui');
+const html = readFileSync(join(UI, 'index.html'), 'utf8');
+const i18nJS = readFileSync(join(UI, 'i18n.js'), 'utf8');
+const appJS = readFileSync(join(UI, 'app.js'), 'utf8');
 
 let failures = 0;
 function check(name, cond) {
@@ -25,13 +28,23 @@ check('default lang="en"', /<html lang="en">/.test(html));
 check('has language dropdown', /<select[^>]*id="lang"/.test(html));
 check('EN option present', /<option value="en">EN<\/option>/.test(html));
 check('RU option present', /<option value="ru">RU<\/option>/.test(html));
-check('script exposes t()', /function t\(/.test(html));
-check('script exposes setLang()', /function setLang\(/.test(html));
-check('script exposes I18N table', /I18N\s*=/.test(html));
+check('no inline <style>', !/<style/i.test(html));
+const scriptTags = html.match(/<script([^>]*)>/gi) || [];
+check('no inline <script>', scriptTags.length > 0 && scriptTags.every(t => /src=/.test(t)));
+check('links styles.css', /<link[^>]*href="styles\.css"/.test(html));
+check('loads i18n.js', /<script[^>]*src="i18n\.js"/.test(html));
+check('loads app.js', /<script[^>]*src="app\.js"/.test(html));
+check('uses declarative data-i18n', /data-i18n(-[a-z]+)?=/.test(html));
 check('settings gear button present', /id="btn-settings"/.test(html));
 check('settings pop-in panel present', /id="settings-pop"/.test(html));
 check('no hardcoded PARAMS array', !/\bPARAMS\s*=/.test(html));
-check('flags loaded from /api/flags', /function loadFlags\(/.test(html) && /\/api\/flags/.test(html));
+
+group('static JS assertions');
+check('i18n exposes t()', /function t\(/.test(i18nJS));
+check('i18n exposes setLang()', /function setLang\(/.test(i18nJS));
+check('i18n exposes applyI18n()', /function applyI18n\(/.test(i18nJS));
+check('i18n exposes I18N table', /I18N\s*=/.test(i18nJS));
+check('app loads flags from /api/flags', /function loadFlags\(/.test(appJS) && /\/api\/flags/.test(appJS));
 
 // ---- a compact real DOM tree so querySelectorAll / dataset / checked work ----
 class El {
@@ -82,7 +95,7 @@ class El {
   }
   match(sel) {
     sel = (sel || '').trim();
-    let m = sel.match(/^\[([a-zA-Z-]+)\]$/);
+    let m = sel.match(/^\[([a-zA-Z0-9_-]+)\]$/);
     if (m) return this.hasAttribute(m[1]);
     m = sel.match(/^\[([a-zA-Z-]+)="([^"]*)"\]$/);
     if (m) return this.getAttribute(m[1]) === m[2];
@@ -123,24 +136,20 @@ function staticElementAttrs(html) {
 function makeRegistry(html) {
   const statics = staticElementAttrs(html);
   const map = new Map();
-  const wrap = (id) => {
-    if (!map.has(id)) {
-      const s = statics.get(id);
-      const el = new El(s ? s.tag : 'div');
-      if (s) {
-        if (s.attrs.class) el._classes.push(...s.attrs.class.split(/\s+/).filter(Boolean));
-        for (const [k, v] of Object.entries(s.attrs)) if (k !== 'class') el.setAttribute(k, v);
-      }
-      map.set(id, el);
-    }
-    return map.get(id);
-  };
+  statics.forEach((s, id) => {
+    const el = new El(s ? s.tag : 'div');
+    if (s.attrs.class) el._classes.push(...s.attrs.class.split(/\s+/).filter(Boolean));
+    for (const [k, v] of Object.entries(s.attrs)) if (k !== 'class') el.setAttribute(k, v);
+    map.set(id, el);
+  });
+  const all = (sel) => [...map.values()].filter(el => el.match && el.match(sel));
   return {
     documentElement: new El('html'),
-    getElementById: (id) => wrap(id),
+    getElementById: (id) => map.get(id) || new El('div'),
     createElement: (tag) => new El(tag),
     addEventListener: () => {},
-    querySelector: () => null,
+    querySelectorAll: (sel) => all(sel),
+    querySelector: (sel) => all(sel)[0] || null,
     _map: map,
   };
 }
@@ -188,8 +197,8 @@ function runApp(navigatorLang) {
   };
   sandbox.window = sandbox;
   vm.createContext(sandbox);
-  const code = html.split('<script>')[1].split('</script>')[0];
-  vm.runInContext(code + '\n;globalThis.__api={t:t,setLang:setLang,loadLang:loadLang,renderI18n:renderI18n,I18N:I18N,LANGS:LANGS,loadFlags:loadFlags,buildForm:buildForm,makeControl:makeControl,onPreset:onPreset,saveCfg:saveCfg,controlValue:controlValue,refreshStatus:refreshStatus,renderStatus:renderStatus,setStatus:(s)=>{STATUS=s},setCurrent:(c)=>{CURRENT=c},setConfig:(c)=>{CONFIG=c},toggleSettings:toggleSettings,closeSettings:closeSettings,renderModels:renderModels,selectModel:selectModel,loadModels:loadModels,loadPresets:loadPresets,getFlags:()=>FLAGS};', sandbox);
+  const code = i18nJS + '\n' + appJS;
+  vm.runInContext(code + '\n;globalThis.__api={t:t,setLang:setLang,loadLang:loadLang,applyI18n:applyI18n,I18N:I18N,LANGS:LANGS,loadFlags:loadFlags,buildForm:buildForm,makeControl:makeControl,onPreset:onPreset,saveCfg:saveCfg,controlValue:controlValue,refreshStatus:refreshStatus,renderStatus:renderStatus,setStatus:(s)=>{STATUS=s},setCurrent:(c)=>{CURRENT=c},setConfig:(c)=>{CONFIG=c},toggleSettings:toggleSettings,closeSettings:closeSettings,renderModels:renderModels,selectModel:selectModel,loadModels:loadModels,loadPresets:loadPresets,getFlags:()=>FLAGS};', sandbox);
   return { sandbox, store, api: sandbox.__api, state, document };
 }
 

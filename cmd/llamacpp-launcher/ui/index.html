@@ -4,58 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>llamacpp-launcher</title>
-<style>
-  :root{
-    --bg:#0f1115;--panel:#171a21;--panel2:#1e222b;--border:#262b36;
-    --text:#e6e9ef;--dim:#8b93a7;--accent:#5b9dff;--green:#3fb950;
-    --red:#f85149;--yellow:#d29922;--mono:ui-monospace,SFMono-Regular,Menlo,monospace;
-  }
-  *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif}
-  header{display:flex;align-items:center;gap:16px;padding:12px 20px;background:var(--panel);border-bottom:1px solid var(--border);position:relative}
-  header h1{font-size:16px;margin:0;font-weight:600}
-  .status{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:13px}
-  .dot{width:10px;height:10px;border-radius:50%;background:var(--dim)}
-  .dot.running{background:var(--green);box-shadow:0 0 8px var(--green)}
-  .dot.stopped{background:var(--red)}
-  .dot.unknown{background:var(--yellow)}
-  select.lang-select{background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-family:var(--mono);font-size:12px;cursor:pointer}
-  button.gear{background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:6px;width:34px;height:32px;font-size:16px;cursor:pointer;line-height:1}
-  button.gear:hover{border-color:var(--accent)}
-  .settings-pop{position:absolute;right:16px;top:52px;z-index:30;width:300px}
-  main{display:grid;grid-template-columns:340px 1fr;gap:0;min-height:calc(100vh - 53px)}
-  .side{border-right:1px solid var(--border);overflow:auto}
-  .side .bar{padding:10px 14px;position:sticky;top:0;background:var(--panel);border-bottom:1px solid var(--border)}
-  .side input{width:100%;padding:8px 10px;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px}
-  .model{padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;flex-direction:column;gap:6px}
-  .model:hover{background:var(--panel)}
-  .model.active{background:var(--panel2);box-shadow:inset 3px 0 0 var(--accent)}
-  .model .name{font-family:var(--mono);font-size:12px;word-break:break-all}
-  .model .meta{display:flex;justify-content:space-between;align-items:center;font-size:12px}
-  .badge{font-size:10px;padding:2px 6px;border:1px solid var(--border);border-radius:10px;color:var(--dim)}
-  .badge.cfg{color:var(--green);border-color:#2a4a2a}
-  .main{padding:18px 22px;overflow:auto}
-  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
-  .field{display:flex;flex-direction:column;gap:4px}
-  .field label{display:flex;justify-content:space-between;gap:8px}
-  .preset-row{display:flex;align-items:center;gap:8px;margin:4px 0 12px}
-  .preset-row label{font-size:12px;color:var(--dim);margin:0}
-  .preset-row select{background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-family:var(--mono);font-size:12px}
-  .field input,.field select{padding:7px 9px;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-family:var(--mono);font-size:13px}
-  .field input[type="checkbox"]{width:auto}
-  .row-actions{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}
-  button{padding:8px 14px;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;cursor:pointer;font-size:13px}
-  button:hover{border-color:var(--accent)}
-  button.primary{background:var(--accent);border-color:var(--accent);color:#0b1020;font-weight:600}
-  button.danger{border-color:#5a2a2a;color:#ff9d99}
-  button:disabled{opacity:.5;cursor:not-allowed}
-  h2{font-size:14px;margin:22px 0 10px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em}
-  .logs{width:100%;height:340px;background:#0b0d12;border:1px solid var(--border);border-radius:6px;padding:10px;font-family:var(--mono);font-size:12px;color:#c9d1e2;resize:vertical;white-space:pre-wrap;word-break:break-word}
-  .info{font-family:var(--mono);font-size:12px;color:var(--dim);margin-bottom:8px}
-  .notice{font-size:12px;color:var(--dim);margin-top:10px}
-   .hidden{display:none}
-   .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin:0 0 16px}
-</style>
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <header>
@@ -69,22 +18,22 @@
     <span id="sub" style="color:var(--dim)"></span>
   </div>
   <div style="flex:1"></div>
-  <button id="btn-restart" onclick="doAction('restart')">⟳ Restart</button>
-  <button id="btn-stop" class="danger" onclick="doAction('stop')">■ Stop</button>
+  <button id="btn-restart" data-i18n="btn_restart" onclick="doAction('restart')">⟳ Restart</button>
+  <button id="btn-stop" class="danger" data-i18n="btn_stop" onclick="doAction('stop')">■ Stop</button>
   <button id="btn-settings" class="gear" onclick="toggleSettings(event)" title="">⚙</button>
 </header>
 
 <div class="settings-pop hidden" id="settings-pop">
   <div class="card">
-    <h2 id="h-settings">Settings</h2>
+    <h2 id="h-settings" data-i18n="settings_menu">Settings</h2>
     <div class="info" id="server-url">http://127.0.0.1:8080</div>
     <div class="grid">
       <div class="field"><label id="l_web_host">Web host</label><input id="set-host" value="127.0.0.1"></div>
       <div class="field"><label id="l_web_port">Web port</label><input id="set-port" value="8080"></div>
     </div>
-    <div class="notice" id="settings-hint">Web server host and port</div>
+    <div class="notice" id="settings-hint" data-i18n="settings_hint">Web server host and port</div>
     <div class="row-actions" style="margin-top:10px">
-      <button id="btn-save-settings" class="primary" onclick="saveSettings()">Save &amp; restart</button>
+      <button id="btn-save-settings" class="primary" data-i18n="btn_save_settings" onclick="saveSettings()">Save &amp; restart</button>
     </div>
     <div class="notice" id="settings-result"></div>
   </div>
@@ -92,405 +41,37 @@
 
 <main>
   <aside class="side">
-    <div class="bar"><input id="search" placeholder="Search models" oninput="renderModels()"></div>
+    <div class="bar"><input id="search" placeholder="Search models" data-i18n-placeholder="search" oninput="renderModels()"></div>
     <div id="models"></div>
   </aside>
 
   <section class="main">
-    <div id="empty" class="notice">No models available. Place a .gguf file in the model directory.</div>
+    <div id="empty" class="notice" data-i18n="empty_notice">No models available. Place a .gguf file in the model directory.</div>
     <div id="editor" class="hidden">
         <div class="info" id="sel-path"></div>
         <div class="preset-row">
-          <label id="presets-label">Presets</label>
+          <label id="presets-label" data-i18n="l_presets">Presets</label>
           <select id="presets" class="lang-select" onchange="onPreset()">
             <option value="">—</option>
           </select>
         </div>
-        <h2 id="h_flags">Flags</h2>
+        <h2 id="h_flags" data-i18n="h_flags">Flags</h2>
         <div class="grid" id="form"></div>
 
       <div class="row-actions">
-        <button id="btn-generate" class="primary" onclick="doStart()">▶ Generate &amp; Start</button>
-        <button id="btn-save" onclick="saveCfg()">💾 Save config</button>
-        <button id="btn-start" onclick="doAction('start')">🚀 Start</button>
-        <button id="btn-logs" onclick="refreshLogs()">⇩ Logs</button>
-        <button id="btn-infer" onclick="healthTest()">✓ Inference test</button>
+        <button id="btn-generate" class="primary" data-i18n="btn_generate" onclick="doStart()">▶ Generate &amp; Start</button>
+        <button id="btn-save" data-i18n="btn_save" onclick="saveCfg()">💾 Save config</button>
+        <button id="btn-start" data-i18n="btn_start" onclick="doAction('start')">🚀 Start</button>
+        <button id="btn-logs" data-i18n="btn_logs" onclick="refreshLogs()">⇩ Logs</button>
+        <button id="btn-infer" data-i18n="btn_infer" onclick="healthTest()">✓ Inference test</button>
       </div>
       <div class="info" id="result"></div>
 
-      <h2 id="h-service-logs">Service logs</h2>
+      <h2 id="h-service-logs" data-i18n="h_service">Service logs</h2>
       <textarea class="logs" id="logs" spellcheck="false"></textarea>
     </section>
   </main>
-</body>
-<script>
-let MODELS=[], CURRENT=null, CONFIG=null, STATUS={}, FLAGS=[];
-
-// ---- i18n ---------------------------------------------------------------
-// Extensible: add a new language by adding an I18N.<code> object. Missing
-// keys fall back to English, then to the key itself.
-const I18N = {
-  en: {
-    search: "Search models",
-    empty_notice: "No models available. Place a .gguf file in the model directory.",
-    no_models: "No models found",
-    l_presets: "Presets",
-    badge_config: "config",
-    badge_none: "no config",
-    l_host: "Bind address",
-    l_port: "HTTP port",
-    l_api_key: "API key",
-    l_gpu_layers: "GPU layers",
-    l_wait_timeout: "Health wait (s)",
-    l_context_size: "Context (tokens)",
-    l_parallel: "Parallel sequences",
-    l_batch_size: "Batch size",
-    l_ubatch_size: "Unpadded batch",
-    l_fit: "Fit to VRAM",
-    l_fit_target: "VRAM margin (MiB)",
-    l_fit_ctx: "Fit context (tokens)",
-    l_cache_k: "KV cache type (K)",
-    l_cache_v: "KV cache type (V)",
-    l_flash_attn: "Flash attention",
-    l_numa: "NUMA strategy",
-    l_cpu_threads: "CPU threads (-t)",
-    l_cpu_threads_batch: "CPU batch threads (-tb)",
-    btn_generate: "▶ Generate & Start",
-    btn_save: "💾 Save config",
-    btn_start: "🚀 Start",
-    btn_logs: "⇩ Logs",
-    btn_infer: "✓ Inference test",
-    btn_restart: "⟳ Restart",
-    btn_stop: "■ Stop",
-    h_service: "Service logs",
-    l_server_settings: "Server settings",
-    l_server_url: "URL",
-    l_web_host: "Web host",
-    l_web_port: "Web port",
-    btn_save_settings: "Save &amp; restart",
-    settings_menu: "Settings",
-    settings_hint: "Web server host and port",
-    h_flags: "Flags",
-    s_restarting: "Restarting…",
-    s_running: "Running",
-    s_stopped: "Stopped",
-    s_failed: "Failed",
-    s_unknown: "Unknown",
-  },
-  ru: {
-    search: "Поиск моделей",
-    empty_notice: "Нет доступных моделей. Положите .gguf в модельный каталог.",
-    no_models: "Модели не найдены",
-    l_presets: "Пресеты",
-    badge_config: "config",
-    badge_none: "no config",
-    l_host: "Адрес привязки",
-    l_port: "Порт HTTP-сервера",
-    l_api_key: "API-ключ",
-    l_gpu_layers: "Слои GPU",
-    l_wait_timeout: "Ожидание /health, сек",
-    l_context_size: "Контекст, токены",
-    l_parallel: "Параллельные последовательности",
-    l_batch_size: "Batch size",
-    l_ubatch_size: "Unpadded batch",
-    l_fit: "Fit в VRAM",
-    l_fit_target: "Запас VRAM, MiB",
-    l_fit_ctx: "Контекст fit, токены",
-    l_cache_k: "Кэш ключей",
-    l_cache_v: "Кэш значений",
-    l_flash_attn: "Flash attention",
-    l_numa: "NUMA стратегия",
-    l_cpu_threads: "Потоки CPU (-t)",
-    l_cpu_threads_batch: "Потоки CPU для батча (-tb)",
-    btn_generate: "▶ Generate & Start",
-    btn_save: "💾 Save config",
-    btn_start: "🚀 Start",
-    btn_logs: "⇩ Логи",
-    btn_infer: "✓ Inference test",
-    btn_restart: "⟳ Restart",
-    btn_stop: "■ Stop",
-    h_service: "Логи службы",
-    l_server_settings: "Настройки сервера",
-    l_server_url: "Адрес",
-    l_web_host: "Адрес веб-интерфейса",
-    l_web_port: "Порт веб-интерфейса",
-    btn_save_settings: "Сохранить и restart",
-    settings_menu: "Настройки",
-    settings_hint: "Адрес и порт веб-интерфейса",
-    h_flags: "Флаги",
-    s_restarting: "Перезапуск…",
-    s_running: "Running",
-    s_stopped: "Stopped",
-    s_failed: "Failed",
-    s_unknown: "Unknown",
-  },
-};
-const LANGS = ["en", "ru"];
-let curLang = "en";
-
-function loadLang() {
-  const saved = localStorage.getItem("lang");
-  const nav = (navigator.language || "").slice(0, 2).toLowerCase();
-  if (saved && LANGS.includes(saved)) curLang = saved;
-  else if (nav && LANGS.includes(nav)) curLang = nav;
-  else curLang = "en";
-}
-function setLang(l) {
-  if (!LANGS.includes(l)) l = "en";
-  curLang = l;
-  localStorage.setItem("lang", l);
-  renderI18n();
-}
-function t(k) {
-  return (I18N[curLang] && I18N[curLang][k]) || I18N.en[k] || k;
-}
-function setI18n(id, k) { const e = document.getElementById(id); if (e) e.textContent = t(k); }
-function renderI18n() {
-  document.documentElement.lang = curLang;
-  document.getElementById("lang").value = curLang;
-  document.getElementById("search").placeholder = t("search");
-  document.getElementById("empty").textContent = t("empty_notice");
-  document.getElementById("btn-restart").innerHTML = t("btn_restart");
-  document.getElementById("btn-stop").innerHTML = t("btn_stop");
-  document.getElementById("btn-generate").innerHTML = t("btn_generate");
-  document.getElementById("btn-save").innerHTML = t("btn_save");
-  document.getElementById("btn-start").innerHTML = t("btn_start");
-  document.getElementById("btn-logs").innerHTML = t("btn_logs");
-  document.getElementById("btn-infer").innerHTML = t("btn_infer");
-  setI18n("h-service-logs", "h_service");
-  setI18n("h-settings", "settings_menu");
-  setI18n("h_flags", "h_flags");
-  const pl = document.getElementById("presets-label");
-  if (pl) pl.textContent = t("l_presets");
-  const sh = document.getElementById("settings-hint");
-  if (sh) sh.textContent = t("settings_hint");
-  renderModels();
-  renderStatus();
-  if (CURRENT && CONFIG) buildForm(CONFIG);
-}
-// -------------------------------------------------------------------------
-
-async function api(url,opts){const r=await fetch(url,opts);const t=await r.text();try{return JSON.parse(t)}catch(e){return{text:t}}}
-async function jget(url){const r=await api(url);return r}
-async function jpost(url,body){return api(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body||{})})}
-
-async function loadFlags(){ FLAGS = (await jget("/api/flags")) || []; return FLAGS; }
-
-function isTrueish(v) {
-  switch (String(v).toLowerCase()) {
-    case "1": case "true": case "on": case "yes": return true;
-    default: return false;
-  }
-}
-
-function makeControl(flag, v) {
-  const name = flag.name;
-  const title = flag.desc ? (name + ": " + flag.desc) : name;
-  if (flag.kind === "toggle") {
-    const cb = document.createElement("input");
-    cb.type = "checkbox";
-    cb.setAttribute("data-key", name);
-    cb.checked = isTrueish(v);
-    cb.title = title;
-    return cb;
-  }
-  if (flag.kind === "enum") {
-    const sel = document.createElement("select");
-    sel.setAttribute("data-key", name);
-    sel.title = title;
-    const choices = (flag.choices && flag.choices.length) ? flag.choices : [String(v)];
-    const uniq = [...new Set(choices.concat([v]).filter(x => x !== undefined && x !== null && x !== ""))];
-    uniq.forEach(o => {
-      const op = document.createElement("option");
-      op.value = o; op.textContent = o;
-      sel.appendChild(op);
-    });
-    sel.value = choices.includes(String(v)) ? String(v) : (uniq[0] ?? "");
-    return sel;
-  }
-  const inp = document.createElement("input");
-  inp.type = "text";
-  inp.setAttribute("data-key", name);
-  inp.value = (v === undefined || v === null) ? "" : String(v);
-  inp.title = title;
-  return inp;
-}
-
-async function buildForm(cfg){
-  const box=document.getElementById("form");box.innerHTML="";
-  FLAGS.forEach(flag=>{
-    const key=flag.name;
-    let v;
-    if (cfg && cfg.flags && Object.prototype.hasOwnProperty.call(cfg.flags, key)) {
-      v = cfg.flags[key];
-    } else if (flag.default !== undefined && flag.default !== null && flag.default !== "") {
-      v = flag.default;
-    } else {
-      v = "";
-    }
-    const f=document.createElement("div");f.className="field";
-    const desc = flag.desc ? ` <span class="notice">${esc(flag.desc)}</span>` : "";
-    f.innerHTML=`<label>${esc(key)}${desc}</label>`;
-    const ctrl = makeControl(flag, v);
-    box.appendChild(f);
-    f.appendChild(ctrl);
-  });
-}
-
-let PRESETS=[];
-async function loadPresets(){
-  const r=await jget("/api/presets");
-  PRESETS=Array.isArray(r)?r:(r.presets||[]);
-  const sel=document.getElementById("presets");
-  sel.innerHTML='<option value="">—</option>';
-  PRESETS.forEach(p=>{
-    const o=document.createElement("option");
-    o.value=p.name; o.textContent=p.title; o.title=p.desc;
-    sel.appendChild(o);
-  });
-}
-function onPreset(){
-  const sel=document.getElementById("presets");
-  const p=PRESETS.find(x=>x.name===sel.value);
-  if(!p)return;
-  const form=document.getElementById("form");
-  form.querySelectorAll("[data-key]").forEach(el=>{
-    const k = el.getAttribute("data-key") || el.dataset.key;
-    if (!p.flags || !(k in p.flags)) return;
-    const v = p.flags[k];
-    if (el.tagName === "INPUT" && el.type === "checkbox") el.checked = isTrueish(v);
-    else el.value = v;
-  });
-}
-function controlValue(el){
-  if (el.tagName === "INPUT" && el.type === "checkbox") return el.checked ? "on" : "off";
-  return el.value;
-}
-async function saveCfg(){
-  if(!CURRENT)return;
-  const flags={};
-  const form=document.getElementById("form");
-  form.querySelectorAll("[data-key]").forEach(el=>{
-    const k = el.getAttribute("data-key") || el.dataset.key;
-    const v = controlValue(el);
-    flags[k] = /^-?\d+$/.test(v) ? parseInt(v,10) : v;
-  });
-  const r=await jpost("/api/config",{model:CURRENT.path, flags:flags});
-  flash(JSON.stringify(r).slice(0,200));
-  loadModels();
-}
-async function doStart(){
-  if(!CURRENT)return;
-  await saveCfg();
-  const r=await jpost("/api/start?model="+encodeURIComponent(CURRENT.path));
-  flash(JSON.stringify(r).slice(0,400));
-  refreshStatus();
-}
-async function doAction(action){
-  const q=CURRENT?("?model="+encodeURIComponent(CURRENT.path)):"";
-  const r=await jpost("/api/"+action+q);
-  flash(JSON.stringify(r).slice(0,300));
-  refreshStatus();
-}
-async function refreshLogs(){
-  const r=await jget("/api/logs?lines=200");
-  document.getElementById("logs").textContent=r.logs||"";
-}
-async function healthTest(){
-  if(!CURRENT)return;
-  const r=await jpost("/api/health-test?model="+encodeURIComponent(CURRENT.path));
-  flash(JSON.stringify(r).slice(0,500));
-}
-function flash(msg){document.getElementById("result").textContent=msg;}
-function human(n){const u=1024;if(n<u)return n+" B";const e=Math.floor(Math.log(n)/Math.log(u));return (n/Math.pow(u,e)).toFixed(1)+" "+["KB","MB","GB","TB"][e-1];}
-function esc(s){return String(s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));}
-function escAttr(s){return esc(String(s)).replace(/"/g,"&quot;");}
-
-async function refreshStatus(){
-  const s=await jget("/api/status");STATUS=s;renderStatus();
-}
-function renderStatus(){
-  const dot=document.getElementById("dot"),st=document.getElementById("state");
-  const sub=document.getElementById("sub");
-  const a=(STATUS.ActiveState||"").toLowerCase();
-  dot.classList.remove("running","stopped","unknown");
-  if(a==="active"){dot.classList.add("running");st.textContent=t("s_running");}
-  else if(a==="inactive"){dot.classList.add("stopped");st.textContent=t("s_stopped");}
-  else if(a==="failed"){dot.classList.add("stopped");st.textContent=t("s_failed");}
-  else{dot.classList.add("unknown");st.textContent=t("s_unknown");}
-  sub.textContent=(STATUS.SubState||"")+(STATUS.MainPID?(" pid "+STATUS.MainPID):"");
-}
-
-async function loadModels(){
-  const m=await jget("/api/models");MODELS=m.models||[];renderModels();
-}
-function renderModels(){
-  const q=(document.getElementById("search").value||"").toLowerCase();
-  const box=document.getElementById("models");box.innerHTML="";
-  const list=MODELS.filter(x=>x.name.toLowerCase().includes(q));
-  if(!list.length){box.innerHTML='<div class="notice" style="padding:14px">'+t("no_models")+'</div>';return;}
-  list.forEach(m=>{
-    const el=document.createElement("div");
-    el.className="model"+(CURRENT&&CURRENT.path===m.path?" active":"");
-    el.innerHTML=`<div class="name">${esc(m.name)}</div>
-      <div class="meta"><span>${human(m.size)}</span>
-      <span class="badge ${m.has_config?"cfg":""}">${m.has_config?t("badge_config"):t("badge_none")}</span></div>`;
-    el.onclick=()=>selectModel(m);
-    box.appendChild(el);
-  });
-}
-function selectModel(m){
-  CURRENT=m;
-  document.getElementById("empty").classList.add("hidden");
-  document.getElementById("editor").classList.remove("hidden");
-  document.getElementById("sel-path").textContent="Model: "+m.path;
-  jget("/api/config?model="+encodeURIComponent(m.path)).then(cfg=>{CONFIG=cfg;buildForm(cfg);});
-  renderModels();
-  renderI18n();
-}
-
-// ---- settings menu ------------------------------------------------------
-function toggleSettings(e){
-  if (e && e.stopPropagation) e.stopPropagation();
-  document.getElementById("settings-pop").classList.toggle("hidden");
-}
-function closeSettings(e){
-  const pop=document.getElementById("settings-pop");
-  const btn=document.getElementById("btn-settings");
-  if (!pop || !btn) return;
-  if (!pop.contains(e.target) && !btn.contains(e.target)) {
-    pop.classList.add("hidden");
-  }
-}
-async function loadSettings(){
-  const s=await jget("/api/settings");
-  document.getElementById("set-host").value=s.webHost||"127.0.0.1";
-  document.getElementById("set-port").value=s.webPort||8080;
-  const url=s.boundAddr||("http://"+(s.webHost||"127.0.0.1")+":"+(s.webPort||8080));
-  document.getElementById("server-url").textContent=url;
-}
-async function saveSettings(){
-  const host=document.getElementById("set-host").value.trim()||"127.0.0.1";
-  const port=document.getElementById("set-port").value.trim()||"8080";
-  flash(t("s_restarting"));
-  const r=await jpost("/api/settings",{webHost:host,webPort:port});
-  if(r.error){flash(r.error);return;}
-  const newHost=r.webHost||host;
-  const newPort=r.webPort||port;
-  const url="http://"+newHost+":"+newPort;
-  document.getElementById("server-url").textContent=url;
-  flash(t("s_restarting"));
-  setTimeout(()=>{location.href=url;},1200);
-}
-
-async function init(){
-  if (typeof document.addEventListener === "function") document.addEventListener("click", closeSettings);
-  loadLang();
-  renderI18n();
-  await Promise.all([loadFlags(), loadSettings(), refreshStatus(), loadModels(), loadPresets()]);
-  if (CURRENT) buildForm(CONFIG);
-}
-init();
-</script>
+<script src="i18n.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
