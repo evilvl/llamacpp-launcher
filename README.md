@@ -6,6 +6,7 @@ Lightweight, zero-dependency Go web UI to manage a [`llama.cpp`](https://github.
 ## Contents
 - [Features](#features)
 - [How it works](#how-it-works)
+- [Installation](#installation)
 - [Repository layout](#repository-layout)
 - [Configuration](#configuration)
 - [Build & run](#build--run)
@@ -44,6 +45,45 @@ browser  ──HTTP──▶  llamacpp-launcher (Go, stdlib)  ──systemctl─
 The service unit `ExecStart` is built as ordered segments: `binary`, `-m model`, `--host`, `--port`, then sorted `flag value` pairs. Toggle flags (`--no-perf`) are emitted bare when truthy. Arbitrary arguments that don't fit the form are appended under the `__extra__` flag.
 
 ---
+
+## Installation
+
+The quickest way to install or update is the one-line installer. It downloads
+the prebuilt binary for your platform from the latest release, verifies it
+against that release's `checksums.txt`, and places it in `~/.local/bin`
+(re-run the same command to update):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/evilvl/llamacpp-launcher/HEAD/scripts/install.sh | bash
+```
+
+Options (all optional):
+
+```bash
+# Pin a specific release instead of latest
+RELEASE_BASE_URL=https://github.com/evilvl/llamacpp-launcher/releases \
+  bash scripts/install.sh --version v0.1.0
+
+# Choose the install directory (default: ~/.local/bin; uses sudo when needed)
+RELEASE_BASE_URL=... bash scripts/install.sh --dest ~/.local/bin
+
+# Download + verify, but do not install
+bash scripts/install.sh --check-only
+```
+
+The installer is platform-agnostic (uses `uname`) and needs neither Go nor Nix.
+`RELEASE_BASE_URL` can point at a mirror if needed.
+
+### Alternatives
+
+```bash
+# From source (requires Go 1.26)
+go build -o llamacpp-launcher ./cmd/llamacpp-launcher
+
+# Via Nix
+nix build .
+./result/bin/llamacpp-launcher
+```
 
 ## Repository layout
 
