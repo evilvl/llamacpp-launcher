@@ -89,7 +89,7 @@ nix build .
 
 | File | Purpose |
 |------|---------|
-| `cmd/llamacpp-launcher/*.go` | Go source: `main.go` (CLI flags, env wiring, HTTP routes), `config.go` (`Config`, default flags, atomic `save`, `buildExecStart`), `presets.go`, `flags.go` (`--help` parser), `service.go` (systemd unit + start/stop/restart/health), `discover.go` (`.gguf` discovery), `handlers.go` (JSON endpoints) |
+| `cmd/llamacpp-launcher/*.go` | Go source: `main.go` (CLI flags, env wiring, HTTP routes), `config.go` (`Config`, default flags, atomic `save`, `buildExecStart`), `presets.go`, `flags.go` (`--help` parser), `service.go` (systemd unit + start/stop/restart/health), `discover.go` (`.gguf` discovery), `handlers.go` (JSON endpoints), `settings.go` (web-server host/port) |
 | `cmd/llamacpp-launcher/ui/index.html` | embedded single-page UI + i18n table (referenced via `//go:embed ui/index.html`) |
 | `flake.nix` | Nix flake: `nix build .` (package), `nix develop` (dev shell), `nix flake check` (go vet + go test + UI/i18n + gofmt), `nix fmt` (nixfmt) |
 | `tests/` | `tests/ui_i18n.test.mjs` (Node) — runs the embedded page in a `vm` sandbox |
@@ -111,7 +111,9 @@ All settings are environment variables (CLI flags for the web server only):
 | `LLAMA_CONFIG_DIR` | `/etc/llama-cpp/configs` | Where per-model `*.conf` files live |
 | `LLAMA_WAIT_TIMEOUT` | `600` | Seconds to wait for `/health` after start |
 | `LLAMA_WEB_HOST` | `127.0.0.1` | Bind address of the web UI |
-| `LLAMA_WEB_PORT` | `8080` | Bind port of the web UI |
+| `LLAMA_WEB_PORT` | `8080` | Bind port of the web UI (set to `0` to auto-pick a free port) |
+
+The web UI port can also be set live from the UI (Server settings panel) via `POST /api/settings`; the change is persisted to `webui-settings.json` and applied by replacing the process in place. If the configured port is already in use, the server falls back to a free port chosen by the OS and logs the actual address.
 
 Default flags applied to every new model (overridable per config): `--host`, `--port`, `--threads`/`--threads-batch` (= nproc), `--ctx-size 256000`, `--fit on`, `--fit-target 256`, `--fit-ctx 256000`, `--flash-attn on`, `--numa distribute`, `--kv-offload 1`, `--load-mode mlock`.
 
@@ -145,6 +147,8 @@ Open <http://localhost:8080>.
 |--------|------|-------------|
 | `GET` | `/` | The web UI (embedded) |
 | `GET` | `/api/version` | Version / service name |
+| `GET` | `/api/settings` | Web-server settings: `{"webHost","webPort","boundAddr"}` |
+| `POST` | `/api/settings` | Set web-server host/port (`{"webHost","webPort"}`); persisted and applied by replacing the process |
 | `GET` | `/api/flags` | Full flag list with kinds and defaults |
 | `GET` | `/api/presets` | Built-in launch presets |
 | `GET` | `/api/models` | Available `.gguf` models |

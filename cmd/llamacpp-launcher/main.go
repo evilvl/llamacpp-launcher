@@ -33,9 +33,12 @@ var appFlags []FlagDef
 var errNotDir = errors.New("не каталог")
 
 func main() {
-	webHost := flag.String("web-host", envOr("LLAMA_WEB_HOST", "127.0.0.1"), "адрес веб-интерфейса")
-	webPort := flag.Int("web-port", envInt("LLAMA_WEB_PORT", 8080), "порт веб-интерфейса")
+	webSettings := loadSettings()
+	webHost := flag.String("web-host", envOr("LLAMA_WEB_HOST", webSettings.WebHost), "адрес веб-интерфейса")
+	webPort := flag.Int("web-port", envInt("LLAMA_WEB_PORT", webSettings.WebPort), "порт веб-интерфейса")
 	flag.Parse()
+
+	settings = Settings{WebHost: *webHost, WebPort: *webPort}
 
 	app = appConfig{
 		ModelRoot:   envOr("LLAMA_MODEL_ROOT", "/opt/models"),
@@ -74,17 +77,24 @@ func main() {
 	mux.HandleFunc("GET /api/logs", handleLogs)
 	mux.HandleFunc("POST /api/health-test", handleHealthTest)
 	mux.HandleFunc("GET /api/version", handleVersion)
+	mux.HandleFunc("GET /api/settings", handleSettingsGet)
+	mux.HandleFunc("POST /api/settings", handleSettingsSave)
 
 	addr := fmt.Sprintf("%s:%d", *webHost, *webPort)
+	ln, actual, err := listenWithFallback(addr)
+	if err != nil {
+		log.Fatalf("server error: %v", err)
+	}
+	boundAddr = actual
+
 	srv := &http.Server{
-		Addr:              addr,
 		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	log.Printf("llamacpp-launcher слушает http://%s  (service=%s)", addr, app.ServiceName)
+	log.Printf("llamacpp-launcher слушает http://%s  (service=%s)", actual, app.ServiceName)
 	log.Printf("журнал: journalctl -u %s -f", app.ServiceName)
-	if err := srv.ListenAndServe(); err != nil {
+	if err := srv.Serve(ln); err != nil {
 		log.Fatalf("server error: %v", err)
 	}
 }

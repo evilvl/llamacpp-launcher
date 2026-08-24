@@ -88,7 +88,7 @@ group('i18n runtime (switch to RU)');
   check('language persisted to localStorage', store['lang'] === 'ru');
   check('lang select reflects RU', sandbox.document.getElementById('lang').value === 'ru');
   check('search placeholder updated on switch', sandbox.document.getElementById('search').placeholder === 'Поиск моделей');
-  check('service heading updated on switch', sandbox.document.querySelector('main h2').textContent === 'Логи службы');
+  check('service heading updated on switch', sandbox.document.getElementById('h-service-logs').textContent === 'Логи службы');
 }
 
 group('i18n runtime (fallbacks & extensibility)');

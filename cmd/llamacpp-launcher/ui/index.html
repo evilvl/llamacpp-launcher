@@ -49,7 +49,8 @@
   .logs{width:100%;height:340px;background:#0b0d12;border:1px solid var(--border);border-radius:6px;padding:10px;font-family:var(--mono);font-size:12px;color:#c9d1e2;resize:vertical;white-space:pre-wrap;word-break:break-word}
   .info{font-family:var(--mono);font-size:12px;color:var(--dim);margin-bottom:8px}
   .notice{font-size:12px;color:var(--dim);margin-top:10px}
-  .hidden{display:none}
+   .hidden{display:none}
+   .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin:0 0 16px}
 </style>
 </head>
 <body>
@@ -75,6 +76,18 @@
   </aside>
 
   <section class="main">
+    <div class="card" id="server-settings">
+      <h2 id="h-server-settings">Server settings</h2>
+      <div class="info" id="server-url">http://127.0.0.1:8080</div>
+      <div class="grid">
+        <div class="field"><label id="l_web_host">Web host</label><input id="set-host" value="127.0.0.1"></div>
+        <div class="field"><label id="l_web_port">Web port</label><input id="set-port" value="8080"></div>
+      </div>
+      <div class="row-actions">
+        <button id="btn-save-settings" class="primary" onclick="saveSettings()">Save &amp; restart</button>
+      </div>
+      <div class="notice" id="settings-result"></div>
+    </div>
     <div id="empty" class="notice">No models available. Place a .gguf file in the model directory.</div>
     <div id="editor" class="hidden">
         <div class="info" id="sel-path"></div>
@@ -95,7 +108,7 @@
       </div>
       <div class="info" id="result"></div>
 
-      <h2>Service logs</h2>
+      <h2 id="h-service-logs">Service logs</h2>
       <textarea class="logs" id="logs" spellcheck="false"></textarea>
     </section>
   </main>
@@ -140,6 +153,12 @@ const I18N = {
     btn_restart: "⟳ Restart",
     btn_stop: "■ Stop",
     h_service: "Service logs",
+    l_server_settings: "Server settings",
+    l_server_url: "URL",
+    l_web_host: "Web host",
+    l_web_port: "Web port",
+    btn_save_settings: "Save &amp; restart",
+    s_restarting: "Restarting…",
     s_running: "Running",
     s_stopped: "Stopped",
     s_failed: "Failed",
@@ -178,6 +197,12 @@ const I18N = {
     btn_restart: "⟳ Restart",
     btn_stop: "■ Stop",
     h_service: "Логи службы",
+    l_server_settings: "Настройки сервера",
+    l_server_url: "Адрес",
+    l_web_host: "Адрес веб-интерфейса",
+    l_web_port: "Порт веб-интерфейса",
+    btn_save_settings: "Сохранить и restart",
+    s_restarting: "Перезапуск…",
     s_running: "Running",
     s_stopped: "Stopped",
     s_failed: "Failed",
@@ -203,6 +228,7 @@ function setLang(l) {
 function t(k) {
   return (I18N[curLang] && I18N[curLang][k]) || I18N.en[k] || k;
 }
+function setI18n(id, k) { const e = document.getElementById(id); if (e) e.textContent = t(k); }
 function renderI18n() {
   document.documentElement.lang = curLang;
   document.getElementById("lang").value = curLang;
@@ -215,8 +241,8 @@ function renderI18n() {
   document.getElementById("btn-start").innerHTML = t("btn_start");
   document.getElementById("btn-logs").innerHTML = t("btn_logs");
   document.getElementById("btn-infer").innerHTML = t("btn_infer");
-  const h = document.querySelector("main h2");
-  if (h) h.textContent = t("h_service");
+  setI18n("h-server-settings", "l_server_settings");
+  setI18n("h-service-logs", "h_service");
   const pl = document.getElementById("presets-label");
   if (pl) pl.textContent = t("l_presets");
   if (CURRENT) refreshStatus(); // update state label to current language
@@ -356,9 +382,30 @@ function human(n){const u=1024;if(n<u)return n+" B";const e=Math.floor(Math.log(
 function esc(s){return String(s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));}
 function escAttr(s){return esc(String(s)).replace(/"/g,"&quot;");}
 
+async function loadSettings(){
+  const s=await jget("/api/settings");
+  document.getElementById("set-host").value=s.webHost||"127.0.0.1";
+  document.getElementById("set-port").value=s.webPort||8080;
+  document.getElementById("server-url").textContent="http://"+(s.webHost||"127.0.0.1")+":"+(s.webPort||8080);
+}
+async function saveSettings(){
+  const host=document.getElementById("set-host").value.trim()||"127.0.0.1";
+  const port=document.getElementById("set-port").value.trim()||"8080";
+  flash(t("s_restarting"));
+  const r=await jpost("/api/settings",{webHost:host,webPort:port});
+  if(r.error){flash(r.error);return;}
+  const newHost=r.webHost||host;
+  const newPort=r.webPort||port;
+  const url="http://"+newHost+":"+newPort;
+  document.getElementById("server-url").textContent=url;
+  flash(t("s_restarting"));
+  setTimeout(()=>{location.href=url;},1200);
+}
+
 async function init(){
   loadLang();
   renderI18n();
+  await loadSettings();
   await refreshStatus();
   await loadModels();
   await loadPresets();
