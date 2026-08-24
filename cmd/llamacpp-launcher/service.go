@@ -132,16 +132,21 @@ func serviceStatus() (map[string]any, error) {
 		"-p", "MainPID", "-p", "NRestarts",
 		"--value", app.ServiceName)
 	if err != nil {
-		return status(), err
+		return nil, err
 	}
+	// `systemctl show -p A -p B … --value` prints one value per requested
+	// property, in order, so map them back to their keys positionally.
+	keys := []string{"ActiveState", "SubState", "UnitFileState", "LoadState", "MainPID", "NRestarts"}
 	m := map[string]any{}
+	i := 0
 	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
 		}
-		parts := strings.SplitN(line, " ", 2)
-		if len(parts) == 2 {
-			m[parts[0]] = parts[1]
+		if i < len(keys) {
+			m[keys[i]] = line
+			i++
 		}
 	}
 	return m, nil

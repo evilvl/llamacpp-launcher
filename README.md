@@ -241,8 +241,8 @@ Individually, inside `nix develop`:
 
 ```bash
 go vet ./...        # static analysis
-go test ./...       # Go unit tests (36 tests)
-node tests/ui_i18n.test.mjs   # UI/i18n tests (26 assertions)
+go test ./...       # Go unit tests (98 tests, ≥90% coverage)
+node tests/ui_i18n.test.mjs   # UI/i18n tests (67 assertions)
 ```
 
 ---

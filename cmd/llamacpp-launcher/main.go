@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -27,10 +28,36 @@ type appConfig struct {
 
 var app = appConfig{}
 
+// newMux registers all HTTP routes. Extracted from main so the wiring can be
+// exercised without binding a socket.
+func newMux() *http.ServeMux {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /", handleIndex)
+	mux.HandleFunc("GET /api/flags", handleFlags)
+	mux.HandleFunc("GET /api/presets", handlePresets)
+	mux.HandleFunc("GET /api/models", handleModels)
+	mux.HandleFunc("GET /api/config", handleConfigGet)
+	mux.HandleFunc("POST /api/config", handleConfigSave)
+	mux.HandleFunc("GET /api/status", handleStatus)
+	mux.HandleFunc("POST /api/start", handleStart)
+	mux.HandleFunc("POST /api/stop", serviceAction(stopService))
+	mux.HandleFunc("POST /api/restart", serviceAction(restartService))
+	mux.HandleFunc("GET /api/logs", handleLogs)
+	mux.HandleFunc("POST /api/health-test", handleHealthTest)
+	mux.HandleFunc("GET /api/version", handleVersion)
+	mux.HandleFunc("GET /api/settings", handleSettingsGet)
+	mux.HandleFunc("POST /api/settings", handleSettingsSave)
+	return mux
+}
+
 // appFlags is the llama-server flag list loaded from --help.
 var appFlags []FlagDef
 
 var errNotDir = errors.New("not a directory")
+
+// serveFunc starts the HTTP server. It is a package var so tests can run main()
+// without blocking on (*http.Server).Serve; production uses the real method.
+var serveFunc = (*http.Server).Serve
 
 func main() {
 	webSettings := loadSettings()
@@ -40,6 +67,21 @@ func main() {
 
 	settings = Settings{WebHost: *webHost, WebPort: *webPort}
 
+	ln, srv, err := run(*webHost, *webPort)
+	if err != nil {
+		log.Fatalf("server error: %v", err)
+	}
+	log.Printf("llamacpp-launcher listens on http://%s  (service=%s)", boundAddr, app.ServiceName)
+	log.Printf("log: journalctl -u %s -f", app.ServiceName)
+	if err := serveFunc(srv, ln); err != nil {
+		log.Fatalf("server error: %v", err)
+	}
+}
+
+// run wires the app (settings, config, flags, routes) and returns a ready,
+// listening server. Extracted from main so the bootstrap can be tested without
+// parsing flags or blocking on Serve.
+func run(webHost string, webPort int) (net.Listener, *http.Server, error) {
 	app = appConfig{
 		ModelRoot:   envOr("LLAMA_MODEL_ROOT", "/opt/models"),
 		LlamaServer: envOr("LLAMA_SERVER_BIN", "/opt/llama-bin/llama-server"),
@@ -63,40 +105,18 @@ func main() {
 	appFlags = loadFlags()
 	log.Printf("loaded llama-server flags: %d", len(appFlags))
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /", handleIndex)
-	mux.HandleFunc("GET /api/flags", handleFlags)
-	mux.HandleFunc("GET /api/presets", handlePresets)
-	mux.HandleFunc("GET /api/models", handleModels)
-	mux.HandleFunc("GET /api/config", handleConfigGet)
-	mux.HandleFunc("POST /api/config", handleConfigSave)
-	mux.HandleFunc("GET /api/status", handleStatus)
-	mux.HandleFunc("POST /api/start", handleStart)
-	mux.HandleFunc("POST /api/stop", serviceAction(stopService))
-	mux.HandleFunc("POST /api/restart", serviceAction(restartService))
-	mux.HandleFunc("GET /api/logs", handleLogs)
-	mux.HandleFunc("POST /api/health-test", handleHealthTest)
-	mux.HandleFunc("GET /api/version", handleVersion)
-	mux.HandleFunc("GET /api/settings", handleSettingsGet)
-	mux.HandleFunc("POST /api/settings", handleSettingsSave)
-
-	addr := fmt.Sprintf("%s:%d", *webHost, *webPort)
+	addr := fmt.Sprintf("%s:%d", webHost, webPort)
 	ln, actual, err := listenWithFallback(addr)
 	if err != nil {
-		log.Fatalf("server error: %v", err)
+		return nil, nil, err
 	}
 	boundAddr = actual
 
 	srv := &http.Server{
-		Handler:           mux,
+		Handler:           newMux(),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
-
-	log.Printf("llamacpp-launcher listens on http://%s  (service=%s)", actual, app.ServiceName)
-	log.Printf("log: journalctl -u %s -f", app.ServiceName)
-	if err := srv.Serve(ln); err != nil {
-		log.Fatalf("server error: %v", err)
-	}
+	return ln, srv, nil
 }
 
 func handleVersion(w http.ResponseWriter, r *http.Request) {

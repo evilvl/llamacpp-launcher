@@ -12,7 +12,7 @@
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif}
-  header{display:flex;align-items:center;gap:16px;padding:12px 20px;background:var(--panel);border-bottom:1px solid var(--border)}
+  header{display:flex;align-items:center;gap:16px;padding:12px 20px;background:var(--panel);border-bottom:1px solid var(--border);position:relative}
   header h1{font-size:16px;margin:0;font-weight:600}
   .status{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:13px}
   .dot{width:10px;height:10px;border-radius:50%;background:var(--dim)}
@@ -20,6 +20,9 @@
   .dot.stopped{background:var(--red)}
   .dot.unknown{background:var(--yellow)}
   select.lang-select{background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-family:var(--mono);font-size:12px;cursor:pointer}
+  button.gear{background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:6px;width:34px;height:32px;font-size:16px;cursor:pointer;line-height:1}
+  button.gear:hover{border-color:var(--accent)}
+  .settings-pop{position:absolute;right:16px;top:52px;z-index:30;width:300px}
   main{display:grid;grid-template-columns:340px 1fr;gap:0;min-height:calc(100vh - 53px)}
   .side{border-right:1px solid var(--border);overflow:auto}
   .side .bar{padding:10px 14px;position:sticky;top:0;background:var(--panel);border-bottom:1px solid var(--border)}
@@ -34,11 +37,12 @@
   .main{padding:18px 22px;overflow:auto}
   .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
   .field{display:flex;flex-direction:column;gap:4px}
+  .field label{display:flex;justify-content:space-between;gap:8px}
   .preset-row{display:flex;align-items:center;gap:8px;margin:4px 0 12px}
   .preset-row label{font-size:12px;color:var(--dim);margin:0}
   .preset-row select{background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-family:var(--mono);font-size:12px}
-  .field label{font-size:12px;color:var(--dim)}
-  .field input{padding:7px 9px;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-family:var(--mono);font-size:13px}
+  .field input,.field select{padding:7px 9px;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-family:var(--mono);font-size:13px}
+  .field input[type="checkbox"]{width:auto}
   .row-actions{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}
   button{padding:8px 14px;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;cursor:pointer;font-size:13px}
   button:hover{border-color:var(--accent)}
@@ -67,7 +71,24 @@
   <div style="flex:1"></div>
   <button id="btn-restart" onclick="doAction('restart')">⟳ Restart</button>
   <button id="btn-stop" class="danger" onclick="doAction('stop')">■ Stop</button>
+  <button id="btn-settings" class="gear" onclick="toggleSettings(event)" title="">⚙</button>
 </header>
+
+<div class="settings-pop hidden" id="settings-pop">
+  <div class="card">
+    <h2 id="h-settings">Settings</h2>
+    <div class="info" id="server-url">http://127.0.0.1:8080</div>
+    <div class="grid">
+      <div class="field"><label id="l_web_host">Web host</label><input id="set-host" value="127.0.0.1"></div>
+      <div class="field"><label id="l_web_port">Web port</label><input id="set-port" value="8080"></div>
+    </div>
+    <div class="notice" id="settings-hint">Web server host and port</div>
+    <div class="row-actions" style="margin-top:10px">
+      <button id="btn-save-settings" class="primary" onclick="saveSettings()">Save &amp; restart</button>
+    </div>
+    <div class="notice" id="settings-result"></div>
+  </div>
+</div>
 
 <main>
   <aside class="side">
@@ -76,18 +97,6 @@
   </aside>
 
   <section class="main">
-    <div class="card" id="server-settings">
-      <h2 id="h-server-settings">Server settings</h2>
-      <div class="info" id="server-url">http://127.0.0.1:8080</div>
-      <div class="grid">
-        <div class="field"><label id="l_web_host">Web host</label><input id="set-host" value="127.0.0.1"></div>
-        <div class="field"><label id="l_web_port">Web port</label><input id="set-port" value="8080"></div>
-      </div>
-      <div class="row-actions">
-        <button id="btn-save-settings" class="primary" onclick="saveSettings()">Save &amp; restart</button>
-      </div>
-      <div class="notice" id="settings-result"></div>
-    </div>
     <div id="empty" class="notice">No models available. Place a .gguf file in the model directory.</div>
     <div id="editor" class="hidden">
         <div class="info" id="sel-path"></div>
@@ -97,6 +106,7 @@
             <option value="">—</option>
           </select>
         </div>
+        <h2 id="h_flags">Flags</h2>
         <div class="grid" id="form"></div>
 
       <div class="row-actions">
@@ -114,7 +124,7 @@
   </main>
 </body>
 <script>
-let MODELS=[], CURRENT=null, STATUS={};
+let MODELS=[], CURRENT=null, CONFIG=null, STATUS={}, FLAGS=[];
 
 // ---- i18n ---------------------------------------------------------------
 // Extensible: add a new language by adding an I18N.<code> object. Missing
@@ -158,6 +168,9 @@ const I18N = {
     l_web_host: "Web host",
     l_web_port: "Web port",
     btn_save_settings: "Save &amp; restart",
+    settings_menu: "Settings",
+    settings_hint: "Web server host and port",
+    h_flags: "Flags",
     s_restarting: "Restarting…",
     s_running: "Running",
     s_stopped: "Stopped",
@@ -202,6 +215,9 @@ const I18N = {
     l_web_host: "Адрес веб-интерфейса",
     l_web_port: "Порт веб-интерфейса",
     btn_save_settings: "Сохранить и restart",
+    settings_menu: "Настройки",
+    settings_hint: "Адрес и порт веб-интерфейса",
+    h_flags: "Флаги",
     s_restarting: "Перезапуск…",
     s_running: "Running",
     s_stopped: "Stopped",
@@ -241,49 +257,168 @@ function renderI18n() {
   document.getElementById("btn-start").innerHTML = t("btn_start");
   document.getElementById("btn-logs").innerHTML = t("btn_logs");
   document.getElementById("btn-infer").innerHTML = t("btn_infer");
-  setI18n("h-server-settings", "l_server_settings");
   setI18n("h-service-logs", "h_service");
+  setI18n("h-settings", "settings_menu");
+  setI18n("h_flags", "h_flags");
   const pl = document.getElementById("presets-label");
   if (pl) pl.textContent = t("l_presets");
-  if (CURRENT) refreshStatus(); // update state label to current language
+  const sh = document.getElementById("settings-hint");
+  if (sh) sh.textContent = t("settings_hint");
+  renderModels();
+  renderStatus();
+  if (CURRENT && CONFIG) buildForm(CONFIG);
 }
 // -------------------------------------------------------------------------
-
-const PARAMS=[
-  ["--host","l_host"],
-  ["--port","l_port"],
-  ["--api-key","l_api_key"],
-  ["--gpu-layers","l_gpu_layers"],
-  ["--ctx-size","l_context_size"],
-  ["--parallel","l_parallel"],
-  ["--n-batch","l_batch_size"],
-  ["--ubatch-size","l_ubatch_size"],
-  ["--fit","l_fit"],
-  ["--fit-target","l_fit_target"],
-  ["--fit-ctx","l_fit_ctx"],
-  ["--cache-type-k","l_cache_k"],
-  ["--cache-type-v","l_cache_v"],
-  ["--flash-attn","l_flash_attn"],
-  ["--numa","l_numa"],
-  ["--threads","l_cpu_threads"],
-  ["--threads-batch","l_cpu_threads_batch"]
-];
 
 async function api(url,opts){const r=await fetch(url,opts);const t=await r.text();try{return JSON.parse(t)}catch(e){return{text:t}}}
 async function jget(url){const r=await api(url);return r}
 async function jpost(url,body){return api(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body||{})})}
 
+async function loadFlags(){ FLAGS = (await jget("/api/flags")) || []; return FLAGS; }
+
+function isTrueish(v) {
+  switch (String(v).toLowerCase()) {
+    case "1": case "true": case "on": case "yes": return true;
+    default: return false;
+  }
+}
+
+function makeControl(flag, v) {
+  const name = flag.name;
+  const title = flag.desc ? (name + ": " + flag.desc) : name;
+  if (flag.kind === "toggle") {
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.setAttribute("data-key", name);
+    cb.checked = isTrueish(v);
+    cb.title = title;
+    return cb;
+  }
+  if (flag.kind === "enum") {
+    const sel = document.createElement("select");
+    sel.setAttribute("data-key", name);
+    sel.title = title;
+    const choices = (flag.choices && flag.choices.length) ? flag.choices : [String(v)];
+    const uniq = [...new Set(choices.concat([v]).filter(x => x !== undefined && x !== null && x !== ""))];
+    uniq.forEach(o => {
+      const op = document.createElement("option");
+      op.value = o; op.textContent = o;
+      sel.appendChild(op);
+    });
+    sel.value = choices.includes(String(v)) ? String(v) : (uniq[0] ?? "");
+    return sel;
+  }
+  const inp = document.createElement("input");
+  inp.type = "text";
+  inp.setAttribute("data-key", name);
+  inp.value = (v === undefined || v === null) ? "" : String(v);
+  inp.title = title;
+  return inp;
+}
+
+async function buildForm(cfg){
+  const box=document.getElementById("form");box.innerHTML="";
+  FLAGS.forEach(flag=>{
+    const key=flag.name;
+    let v;
+    if (cfg && cfg.flags && Object.prototype.hasOwnProperty.call(cfg.flags, key)) {
+      v = cfg.flags[key];
+    } else if (flag.default !== undefined && flag.default !== null && flag.default !== "") {
+      v = flag.default;
+    } else {
+      v = "";
+    }
+    const f=document.createElement("div");f.className="field";
+    const desc = flag.desc ? ` <span class="notice">${esc(flag.desc)}</span>` : "";
+    f.innerHTML=`<label>${esc(key)}${desc}</label>`;
+    const ctrl = makeControl(flag, v);
+    box.appendChild(f);
+    f.appendChild(ctrl);
+  });
+}
+
+let PRESETS=[];
+async function loadPresets(){
+  const r=await jget("/api/presets");
+  PRESETS=Array.isArray(r)?r:(r.presets||[]);
+  const sel=document.getElementById("presets");
+  sel.innerHTML='<option value="">—</option>';
+  PRESETS.forEach(p=>{
+    const o=document.createElement("option");
+    o.value=p.name; o.textContent=p.title; o.title=p.desc;
+    sel.appendChild(o);
+  });
+}
+function onPreset(){
+  const sel=document.getElementById("presets");
+  const p=PRESETS.find(x=>x.name===sel.value);
+  if(!p)return;
+  const form=document.getElementById("form");
+  form.querySelectorAll("[data-key]").forEach(el=>{
+    const k = el.getAttribute("data-key") || el.dataset.key;
+    if (!p.flags || !(k in p.flags)) return;
+    const v = p.flags[k];
+    if (el.tagName === "INPUT" && el.type === "checkbox") el.checked = isTrueish(v);
+    else el.value = v;
+  });
+}
+function controlValue(el){
+  if (el.tagName === "INPUT" && el.type === "checkbox") return el.checked ? "on" : "off";
+  return el.value;
+}
+async function saveCfg(){
+  if(!CURRENT)return;
+  const flags={};
+  const form=document.getElementById("form");
+  form.querySelectorAll("[data-key]").forEach(el=>{
+    const k = el.getAttribute("data-key") || el.dataset.key;
+    const v = controlValue(el);
+    flags[k] = /^-?\d+$/.test(v) ? parseInt(v,10) : v;
+  });
+  const r=await jpost("/api/config",{model:CURRENT.path, flags:flags});
+  flash(JSON.stringify(r).slice(0,200));
+  loadModels();
+}
+async function doStart(){
+  if(!CURRENT)return;
+  await saveCfg();
+  const r=await jpost("/api/start?model="+encodeURIComponent(CURRENT.path));
+  flash(JSON.stringify(r).slice(0,400));
+  refreshStatus();
+}
+async function doAction(action){
+  const q=CURRENT?("?model="+encodeURIComponent(CURRENT.path)):"";
+  const r=await jpost("/api/"+action+q);
+  flash(JSON.stringify(r).slice(0,300));
+  refreshStatus();
+}
+async function refreshLogs(){
+  const r=await jget("/api/logs?lines=200");
+  document.getElementById("logs").textContent=r.logs||"";
+}
+async function healthTest(){
+  if(!CURRENT)return;
+  const r=await jpost("/api/health-test?model="+encodeURIComponent(CURRENT.path));
+  flash(JSON.stringify(r).slice(0,500));
+}
+function flash(msg){document.getElementById("result").textContent=msg;}
+function human(n){const u=1024;if(n<u)return n+" B";const e=Math.floor(Math.log(n)/Math.log(u));return (n/Math.pow(u,e)).toFixed(1)+" "+["KB","MB","GB","TB"][e-1];}
+function esc(s){return String(s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));}
+function escAttr(s){return esc(String(s)).replace(/"/g,"&quot;");}
+
 async function refreshStatus(){
-  const s=await jget("/api/status");STATUS=s;
+  const s=await jget("/api/status");STATUS=s;renderStatus();
+}
+function renderStatus(){
   const dot=document.getElementById("dot"),st=document.getElementById("state");
   const sub=document.getElementById("sub");
-  const a=(s.ActiveState||"").toLowerCase();
+  const a=(STATUS.ActiveState||"").toLowerCase();
   dot.classList.remove("running","stopped","unknown");
   if(a==="active"){dot.classList.add("running");st.textContent=t("s_running");}
   else if(a==="inactive"){dot.classList.add("stopped");st.textContent=t("s_stopped");}
   else if(a==="failed"){dot.classList.add("stopped");st.textContent=t("s_failed");}
   else{dot.classList.add("unknown");st.textContent=t("s_unknown");}
-  sub.textContent=(s.SubState||"")+(s.MainPID?(" pid "+s.MainPID):"");
+  sub.textContent=(STATUS.SubState||"")+(STATUS.MainPID?(" pid "+STATUS.MainPID):"");
 }
 
 async function loadModels(){
@@ -309,79 +444,24 @@ function selectModel(m){
   document.getElementById("empty").classList.add("hidden");
   document.getElementById("editor").classList.remove("hidden");
   document.getElementById("sel-path").textContent="Model: "+m.path;
-  jget("/api/config?model="+encodeURIComponent(m.path)).then(cfg=>buildForm(cfg));
+  jget("/api/config?model="+encodeURIComponent(m.path)).then(cfg=>{CONFIG=cfg;buildForm(cfg);});
   renderModels();
-}
-function buildForm(cfg){
-  const box=document.getElementById("form");box.innerHTML="";
-  PARAMS.forEach(([key,labelKey])=>{
-    const v=cfg[key]!==undefined?cfg[key]:"";
-    const f=document.createElement("div");f.className="field";
-    f.innerHTML=`<label>${t(labelKey)} <code style="color:var(--accent)">${key}</code></label>
-      <input data-key="${key}" value="${escAttr(v)}">`;
-    box.appendChild(f);
-  });
+  renderI18n();
 }
 
-let PRESETS=[];
-async function loadPresets(){
-  const r=await jget("/api/presets");
-  PRESETS=Array.isArray(r)?r:(r.presets||[]);
-  const sel=document.getElementById("presets");
-  sel.innerHTML='<option value="">—</option>';
-  PRESETS.forEach(p=>{
-    const o=document.createElement("option");
-    o.value=p.name; o.textContent=p.title; o.title=p.desc;
-    sel.appendChild(o);
-  });
+// ---- settings menu ------------------------------------------------------
+function toggleSettings(e){
+  if (e && e.stopPropagation) e.stopPropagation();
+  document.getElementById("settings-pop").classList.toggle("hidden");
 }
-function onPreset(){
-  const sel=document.getElementById("presets");
-  const p=PRESETS.find(x=>x.name===sel.value);
-  if(!p)return;
-  document.querySelectorAll("#form input").forEach(i=>{
-    if(p.flags&&Object.prototype.hasOwnProperty.call(p.flags,i.dataset.key)) i.value=p.flags[i.dataset.key];
-  });
+function closeSettings(e){
+  const pop=document.getElementById("settings-pop");
+  const btn=document.getElementById("btn-settings");
+  if (!pop || !btn) return;
+  if (!pop.contains(e.target) && !btn.contains(e.target)) {
+    pop.classList.add("hidden");
+  }
 }
-async function saveCfg(){
-  if(!CURRENT)return;
-  const cfg={model:CURRENT.path};
-  document.querySelectorAll("#form input").forEach(i=>{
-    const v=i.value;
-    cfg[i.dataset.key]=/^-?\d+$/.test(v)?parseInt(v,10):v;
-  });
-  const r=await jpost("/api/config",cfg);
-  flash(JSON.stringify(r).slice(0,200));
-  loadModels();
-}
-async function doStart(){
-  if(!CURRENT)return;
-  await saveCfg();
-  const r=await jpost("/api/start?model="+encodeURIComponent(CURRENT.path));
-  flash(JSON.stringify(r).slice(0,400));
-  refreshStatus();
-}
-async function doAction(action){
-  if(!CURRENT&&action!=="start"){}
-  const q=CURRENT?("?model="+encodeURIComponent(CURRENT.path)):"";
-  const r=await jpost("/api/"+action+q);
-  flash(JSON.stringify(r).slice(0,300));
-  refreshStatus();
-}
-async function refreshLogs(){
-  const r=await jget("/api/logs?lines=200");
-  document.getElementById("logs").textContent=r.logs||"";
-}
-async function healthTest(){
-  if(!CURRENT)return;
-  const r=await jpost("/api/health-test?model="+encodeURIComponent(CURRENT.path));
-  flash(JSON.stringify(r).slice(0,500));
-}
-function flash(msg){document.getElementById("result").textContent=msg;}
-function human(n){const u=1024;if(n<u)return n+" B";const e=Math.floor(Math.log(n)/Math.log(u));return (n/Math.pow(u,e)).toFixed(1)+" "+["KB","MB","GB","TB"][e-1];}
-function esc(s){return String(s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));}
-function escAttr(s){return esc(String(s)).replace(/"/g,"&quot;");}
-
 async function loadSettings(){
   const s=await jget("/api/settings");
   document.getElementById("set-host").value=s.webHost||"127.0.0.1";
@@ -404,14 +484,11 @@ async function saveSettings(){
 }
 
 async function init(){
+  if (typeof document.addEventListener === "function") document.addEventListener("click", closeSettings);
   loadLang();
   renderI18n();
-  await loadSettings();
-  await refreshStatus();
-  await loadModels();
-  await loadPresets();
-  setInterval(refreshStatus,5000);
-  if(CURRENT)setInterval(refreshLogs,5000);
+  await Promise.all([loadFlags(), loadSettings(), refreshStatus(), loadModels(), loadPresets()]);
+  if (CURRENT) buildForm(CONFIG);
 }
 init();
 </script>
