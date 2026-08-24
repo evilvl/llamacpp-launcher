@@ -196,21 +196,71 @@ async function loadSettings(){
   const s=await jget("/api/settings");
   document.getElementById("set-host").value=s.webHost||"127.0.0.1";
   document.getElementById("set-port").value=s.webPort||8080;
+  document.getElementById("set-model-dir").value=s.modelDir||"";
+  document.getElementById("set-llama-server").value=s.llamaServer||"";
   const url=s.boundAddr||("http://"+(s.webHost||"127.0.0.1")+":"+(s.webPort||8080));
   document.getElementById("server-url").textContent=url;
+  const lang=(s.lang==="en"||s.lang==="ru")?s.lang:"en";
+  document.getElementById("lang").value=lang;
+  document.getElementById("set-lang").value=lang;
+  setLang(lang);
+}
+async function saveAppSettings(){
+  const dir=document.getElementById("set-model-dir").value.trim();
+  if(!dir){flash(t("model_dir_empty"));return;}
+  const bin=document.getElementById("set-llama-server").value.trim();
+  if(!bin){flash(t("llama_server_empty"));return;}
+  let ok=true;
+  const r=await jpost("/api/app/model-dir",{modelDir:dir});
+  if(r.error){flash(r.error);ok=false;}
+  const r2=await jpost("/api/app/llama-server",{llamaServer:bin});
+  if(r2.error){flash(r2.error);ok=false;}
+  if(!ok){return;}
+  flash(t("saved"));
+  // Re-read the model list from the new directory without a restart.
+  CURRENT=null;
+  document.getElementById("empty").classList.remove("hidden");
+  document.getElementById("editor").classList.add("hidden");
+  await loadModels();
 }
 async function saveSettings(){
   const host=document.getElementById("set-host").value.trim()||"127.0.0.1";
   const port=document.getElementById("set-port").value.trim()||"8080";
-  flash(t("s_restarting"));
-  const r=await jpost("/api/settings",{webHost:host,webPort:port});
+  const lang=document.getElementById("set-lang").value;
+  const r=await jpost("/api/settings",{webHost:host,webPort:port,lang:lang});
   if(r.error){flash(r.error);return;}
+  const newLang=r.lang||lang;
+  document.getElementById("lang").value=newLang;
+  document.getElementById("set-lang").value=newLang;
+  setLang(newLang);
   const newHost=r.webHost||host;
   const newPort=r.webPort||port;
-  const url="http://"+newHost+":"+newPort;
-  document.getElementById("server-url").textContent=url;
-  flash(t("s_restarting"));
-  setTimeout(()=>{location.href=url;},1200);
+  document.getElementById("server-url").textContent="http://"+newHost+":"+newPort;
+  if(r.restarted){
+    flash(t("s_restarting"));
+    const url="http://"+newHost+":"+newPort;
+    setTimeout(()=>{location.href=url;},1200);
+  } else {
+    flash(t("saved"));
+  }
+}
+
+async function setAppLang(v){
+  document.getElementById("lang").value=v;
+  document.getElementById("set-lang").value=v;
+  setLang(v);
+  const host=document.getElementById("set-host").value.trim()||"127.0.0.1";
+  const port=document.getElementById("set-port").value.trim()||"8080";
+  const r=await jpost("/api/settings",{webHost:host,webPort:port,lang:v});
+  if(r.error){flash(r.error);return;}
+  if(r.restarted){
+    const url="http://"+(r.webHost||host)+":"+(r.webPort||port);
+    document.getElementById("server-url").textContent=url;
+    flash(t("s_restarting"));
+    setTimeout(()=>{location.href=url;},1200);
+  } else {
+    flash(t("language_saved"));
+  }
 }
 
 async function init(){

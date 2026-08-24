@@ -13,9 +13,12 @@ header h1{font-size:16px;margin:0;font-weight:600}
 .dot.stopped{background:var(--red)}
 .dot.unknown{background:var(--yellow)}
 select.lang-select{background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-family:var(--mono);font-size:12px;cursor:pointer}
-button.gear{background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:6px;width:34px;height:32px;font-size:16px;cursor:pointer;line-height:1}
+button.gear{background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:6px;width:34px;height:32px;font-size:16px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;line-height:1}
 button.gear:hover{border-color:var(--accent)}
-.settings-pop{position:absolute;right:16px;top:52px;z-index:30;width:300px}
+.settings-pop{position:absolute;right:16px;top:52px;z-index:30;width:360px}
+.settings-section{margin-top:14px;padding-top:12px;border-top:1px solid var(--border)}
+.settings-section:first-of-type{border-top:0;margin-top:0;padding-top:0}
+.section-title{font-size:11px;color:var(--accent);font-weight:700;margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em}
 main{display:grid;grid-template-columns:340px 1fr;gap:0;min-height:calc(100vh - 53px)}
 .side{border-right:1px solid var(--border);overflow:auto}
 .side .bar{padding:10px 14px;position:sticky;top:0;background:var(--panel);border-bottom:1px solid var(--border)}

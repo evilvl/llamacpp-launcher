@@ -24,6 +24,15 @@ func withRunCmd(t *testing.T, out string, err error) {
 	t.Cleanup(func() { runCmd = orig })
 }
 
+// withServiceRoot stubs the systemd-permission check so service actions run as
+// if they had root privileges, restoring the original on test cleanup.
+func withServiceRoot(t *testing.T) {
+	t.Helper()
+	orig := checkServicePermissions
+	checkServicePermissions = func() error { return nil }
+	t.Cleanup(func() { checkServicePermissions = orig })
+}
+
 func TestHandleStatus(t *testing.T) {
 	app = appConfig{ServiceName: "llama-coder"}
 	// `systemctl show … --value` prints one value per property, in order.
@@ -52,6 +61,7 @@ func TestHandleStartSuccess(t *testing.T) {
 	if err := cfg.save(); err != nil {
 		t.Fatalf("save: %v", err)
 	}
+	withServiceRoot(t)
 	withRunCmd(t, "", nil)
 
 	rec := httptest.NewRecorder()
@@ -77,6 +87,7 @@ func TestHandleStartServiceError(t *testing.T) {
 	model := "/opt/models/m.gguf"
 	app = appConfig{ConfigDir: t.TempDir(), ServiceName: "llama-coder",
 		ServiceFile: filepath.Join(t.TempDir(), "m.service"), WaitTimeout: 1, LlamaServer: "/opt/llama-bin/llama-server"}
+	withServiceRoot(t)
 	withRunCmd(t, "", errors.New("systemctl failed")) // systemctl fails
 	rec := httptest.NewRecorder()
 	handleStart(rec, httptest.NewRequest(http.MethodPost, "/api/start?model="+model, nil))
@@ -175,6 +186,7 @@ func TestWriteUnitAndActions(t *testing.T) {
 		ServiceFile: filepath.Join(t.TempDir(), "unit.service")}
 	generateUnit(defaultConfig("/opt/models/m.gguf"))
 
+	withServiceRoot(t)
 	withRunCmd(t, "", nil)
 	st, err := stopService()
 	if err != nil || st == nil {
@@ -541,6 +553,7 @@ func TestHandleModelsEmpty(t *testing.T) {
 
 func TestStopRestartReadLogsError(t *testing.T) {
 	app = appConfig{ServiceName: "llama-coder"}
+	withServiceRoot(t)
 	withRunCmd(t, "", errors.New("systemctl failed"))
 	if _, err := stopService(); err == nil {
 		t.Fatalf("stopService should error")
@@ -706,6 +719,7 @@ func TestStartServiceHealthTimeout(t *testing.T) {
 	if err := defaultConfig(model).save(); err != nil {
 		t.Fatalf("save: %v", err)
 	}
+	withServiceRoot(t)
 	withRunCmd(t, "", nil) // systemctl calls succeed
 	_, err := startService(model)
 	if err == nil {

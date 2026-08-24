@@ -9,7 +9,7 @@
 <body>
 <header>
   <h1>llamacpp-launcher</h1>
-  <select class="lang-select" id="lang" onchange="setLang(this.value)">
+  <select class="lang-select" id="lang" onchange="setAppLang(this.value)">
     <option value="en">EN</option>
     <option value="ru">RU</option>
   </select>
@@ -27,14 +27,32 @@
   <div class="card">
     <h2 id="h-settings" data-i18n="settings_menu">Settings</h2>
     <div class="info" id="server-url">http://127.0.0.1:8080</div>
-    <div class="grid">
-      <div class="field"><label id="l_web_host">Web host</label><input id="set-host" value="127.0.0.1"></div>
-      <div class="field"><label id="l_web_port">Web port</label><input id="set-port" value="8080"></div>
+
+    <div class="settings-section">
+      <div class="section-title" data-i18n="l_server_settings">Server settings</div>
+      <div class="field"><label id="l_web_host" data-i18n="l_web_host">Web host</label><input id="set-host" value="127.0.0.1"></div>
+      <div class="field"><label id="l_web_port" data-i18n="l_web_port">Web port</label><input id="set-port" value="8080"></div>
+      <div class="notice" id="settings-hint" data-i18n="settings_hint">Web server host and port</div>
+      <div class="row-actions">
+        <button id="btn-save-settings" class="primary" data-i18n="btn_save_settings" onclick="saveSettings()">Save &amp; restart</button>
+      </div>
     </div>
-    <div class="notice" id="settings-hint" data-i18n="settings_hint">Web server host and port</div>
-    <div class="row-actions" style="margin-top:10px">
-      <button id="btn-save-settings" class="primary" data-i18n="btn_save_settings" onclick="saveSettings()">Save &amp; restart</button>
+
+    <div class="settings-section">
+      <div class="section-title" data-i18n="l_app_settings">Application</div>
+      <div class="field"><label id="l_model_dir" data-i18n="l_model_dir">Model directory</label><input id="set-model-dir" type="text" autocomplete="off" spellcheck="false"></div>
+      <div class="field" style="margin-top:12px"><label id="l_llama_server" data-i18n="l_llama_server">llama-server binary</label><input id="set-llama-server" type="text" autocomplete="off" spellcheck="false"></div>
+      <div class="field" style="margin-top:12px"><label id="l_language" data-i18n="l_language">Language</label>
+        <select id="set-lang" class="lang-select" onchange="setAppLang(this.value)">
+          <option value="en">EN</option>
+          <option value="ru">RU</option>
+        </select>
+      </div>
+      <div class="row-actions">
+        <button id="btn-save-app" class="primary" data-i18n="btn_apply" onclick="saveAppSettings()">Apply</button>
+      </div>
     </div>
+
     <div class="notice" id="settings-result"></div>
   </div>
 </div>

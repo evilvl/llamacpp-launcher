@@ -146,7 +146,7 @@ func handleStart(w http.ResponseWriter, r *http.Request) {
 	}
 	st, err := startService(model)
 	if err != nil {
-		writeError(w, http.StatusServiceUnavailable, err.Error())
+		writeError(w, http.StatusServiceUnavailable, translateErr(err))
 		return
 	}
 	writeJSON(w, st)

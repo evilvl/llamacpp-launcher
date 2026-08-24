@@ -30,7 +30,7 @@
 
           pkg = pkgs.stdenv.mkDerivation {
             pname = "llamacpp-launcher";
-            version = "0.1.1";
+            version = "0.2.0";
 
             inherit src;
 
@@ -53,27 +53,36 @@
             '';
           };
 
-           smoke = pkgs.writeShellApplication {
-             name = "smoke";
+          smoke = pkgs.writeShellApplication {
+            name = "smoke";
 
-             runtimeInputs = [
-               pkgs.go
-             ];
+            runtimeInputs = [
+              pkgs.go
+            ];
 
-             text = ''
-               set -uo pipefail
-               export CGO_ENABLED=0
+            text = ''
+              set -uo pipefail
+              export CGO_ENABLED=0
 
-               go vet ./...
-               go build -o llamacpp-launcher ./cmd/llamacpp-launcher
+              go vet ./...
+              go build -o llamacpp-launcher ./cmd/llamacpp-launcher
 
-               echo BUILD_OK
+              echo BUILD_OK
 
-               go test -tags=integration ./test/e2e/...
+              go test -tags=integration ./test/e2e/...
 
-               echo SMOKE_OK
-             '';
-           };
+              echo SMOKE_OK
+            '';
+          };
+
+          apps = {
+             run = {
+               type = "app";
+
+               program = "${pkg}/bin/llamacpp-launcher";
+               meta.description = "Build and run llamacpp-launcher for local testing";
+             };
+          };
 
           checks = {
             go-vet-and-tests =
@@ -136,6 +145,7 @@
           packages.default = pkg;
           packages.smoke = smoke;
 
+          inherit apps;
           inherit checks;
 
           devShells.default = pkgs.mkShell {
@@ -160,6 +170,8 @@
       checks = forAllSystems (system: (perSystem system).checks);
 
       devShells = forAllSystems (system: (perSystem system).devShells);
+
+      apps = forAllSystems (system: (perSystem system).apps);
 
       formatter = forAllSystems (system: (perSystem system).formatter);
     };

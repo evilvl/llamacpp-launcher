@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -18,6 +19,45 @@ var runCmd = func(name string, args ...string) (string, error) {
 	cmd := exec.Command(name, args...)
 	out, err := cmd.CombinedOutput()
 	return string(out), err
+}
+
+// checkServicePermissions reports whether the current user may manage systemd
+// units. systemctl operations require root; running them as a normal user makes
+// systemctl read a password from stdin, which would hang the HTTP handler. The
+// check is a var so tests can stub it.
+var checkServicePermissions = func() error {
+	if os.Geteuid() == 0 {
+		return nil
+	}
+	return errServiceRequiresRoot
+}
+
+// errServiceRequiresRoot is returned when a service action needs root
+// privileges (systemctl). It is surfaced to the UI instead of hanging on a
+// password prompt.
+var errServiceRequiresRoot = errors.New("err_service_root")
+
+// errServiceRequiresRootMsg holds the localized text shown to the user when a
+// service action needs root privileges.
+var errServiceRequiresRootMsg = map[string]string{
+	"en": "This action requires root privileges (systemctl). Relaunch the application as root (e.g. with sudo) to start, stop, or restart the service.",
+	"ru": "Это действие требует прав root (systemctl). Перезапустите приложение от root (например, через sudo), чтобы запускать, останавливать и перезапускать службу.",
+}
+
+// translateErr returns a user-facing message for known sentinel errors,
+// localized to the active UI language; anything else is returned as-is.
+func translateErr(err error) string {
+	if !errors.Is(err, errServiceRequiresRoot) {
+		return err.Error()
+	}
+	lang := strings.ToLower(settings.Lang)
+	if lang != "en" && lang != "ru" {
+		lang = "en"
+	}
+	if msg, ok := errServiceRequiresRootMsg[lang]; ok {
+		return msg
+	}
+	return errServiceRequiresRootMsg["en"]
 }
 
 // generateUnit builds the content of the systemd unit for a model (analog of generate_service from bash).
@@ -72,6 +112,9 @@ func writeUnit(c *Config) error {
 
 // startService loads/generates the unit, enables and starts the service, waits for /health.
 func startService(model string) (map[string]any, error) {
+	if err := checkServicePermissions(); err != nil {
+		return status(), err
+	}
 	cfg := loadActiveConfig(model)
 	if err := writeUnit(cfg); err != nil {
 		return status(), err
@@ -97,6 +140,9 @@ func startService(model string) (map[string]any, error) {
 
 // stopService stops the service.
 func stopService() (map[string]any, error) {
+	if err := checkServicePermissions(); err != nil {
+		return status(), err
+	}
 	if _, err := runCmd("systemctl", "stop", app.ServiceName); err != nil {
 		return status(), err
 	}
@@ -105,6 +151,9 @@ func stopService() (map[string]any, error) {
 
 // restartService restarts the service.
 func restartService() (map[string]any, error) {
+	if err := checkServicePermissions(); err != nil {
+		return status(), err
+	}
 	if _, err := runCmd("systemctl", "restart", app.ServiceName); err != nil {
 		return status(), err
 	}
@@ -117,7 +166,7 @@ func serviceAction(do func() (map[string]any, error)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		st, err := do()
 		if err != nil {
-			writeError(w, http.StatusServiceUnavailable, err.Error())
+			writeError(w, http.StatusServiceUnavailable, translateErr(err))
 			return
 		}
 		writeJSON(w, st)

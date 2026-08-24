@@ -50,6 +50,8 @@ func newMux() *http.ServeMux {
 	mux.HandleFunc("GET /api/version", handleVersion)
 	mux.HandleFunc("GET /api/settings", handleSettingsGet)
 	mux.HandleFunc("POST /api/settings", handleSettingsSave)
+	mux.HandleFunc("POST /api/app/model-dir", handleModelDirSet)
+	mux.HandleFunc("POST /api/app/llama-server", handleLlamaServerSet)
 	return mux
 }
 
@@ -63,14 +65,41 @@ var errNotDir = errors.New("not a directory")
 var serveFunc = (*http.Server).Serve
 
 func main() {
-	webSettings := loadSettings()
-	webHost := flag.String("web-host", envOr("LLAMA_WEB_HOST", webSettings.WebHost), "web UI address")
-	webPort := flag.Int("web-port", envInt("LLAMA_WEB_PORT", webSettings.WebPort), "web UI port")
+	webHost := flag.String("web-host", "", "web UI address")
+	webPort := flag.Int("web-port", 0, "web UI port")
+	configFlag := flag.String("config", "", "path to the application settings file (default: <LLAMA_CONFIG_DIR>/webui-settings.json)")
 	flag.Parse()
 
-	settings = Settings{WebHost: *webHost, WebPort: *webPort}
+	app.ConfigDir = envOr("LLAMA_CONFIG_DIR", "/etc/llama-cpp/configs")
+	setConfigPath(*configFlag)
+	webSettings := loadSettings()
 
-	ln, srv, err := run(*webHost, *webPort)
+	// Precedence: flag > env > settings file. Port 0 keeps the ephemeral bind.
+	host := *webHost
+	if host == "" {
+		host = envOr("LLAMA_WEB_HOST", webSettings.WebHost)
+	}
+	port := *webPort
+	if port == 0 {
+		port = envInt("LLAMA_WEB_PORT", webSettings.WebPort)
+	}
+
+	lang := webSettings.Lang
+	if lang != "en" && lang != "ru" {
+		lang = "en"
+	}
+
+	settings = Settings{
+		WebHost:     host,
+		WebPort:     port,
+		ModelDir:    webSettings.ModelDir,
+		LlamaServer: webSettings.LlamaServer,
+		Lang:        lang,
+	}
+
+	persistSettingsIfMissing()
+
+	ln, srv, err := run(settings.WebHost, settings.WebPort)
 	if err != nil {
 		log.Fatalf("server error: %v", err)
 	}
@@ -86,8 +115,8 @@ func main() {
 // parsing flags or blocking on Serve.
 func run(webHost string, webPort int) (net.Listener, *http.Server, error) {
 	app = appConfig{
-		ModelRoot:   envOr("LLAMA_MODEL_ROOT", "/opt/models"),
-		LlamaServer: envOr("LLAMA_SERVER_BIN", "/opt/llama-bin/llama-server"),
+		ModelRoot:   preferEnv("LLAMA_MODEL_ROOT", settings.ModelDir, "/opt/models"),
+		LlamaServer: preferEnv("LLAMA_SERVER_BIN", settings.LlamaServer, "/opt/llama-bin/llama-server"),
 		ServiceName: envOr("LLAMA_SERVICE_NAME", "llama-coder"),
 		ConfigDir:   envOr("LLAMA_CONFIG_DIR", "/etc/llama-cpp/configs"),
 		ServiceFile: envOr("LLAMA_SERVICE_FILE", "/etc/systemd/system/"+envOr("LLAMA_SERVICE_NAME", "llama-coder")+".service"),
@@ -129,6 +158,19 @@ func handleVersion(w http.ResponseWriter, r *http.Request) {
 func envOr(key, def string) string {
 	if v, ok := os.LookupEnv(key); ok {
 		return v
+	}
+	return def
+}
+
+// preferEnv returns the first non-empty value among the environment variable
+// (key), the file-stored value (file), and the hardcoded default (def).
+// Environment wins over the file, the file over the default.
+func preferEnv(key, file, def string) string {
+	if v, ok := os.LookupEnv(key); ok && v != "" {
+		return v
+	}
+	if file != "" {
+		return file
 	}
 	return def
 }

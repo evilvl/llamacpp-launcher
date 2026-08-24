@@ -14,18 +14,43 @@ import (
 	"time"
 )
 
-// Settings — global web-server settings (bind address).
-// Unlike Config, they are not bound to a model and are saved once.
+// Settings — global application settings (web bind address, model directory,
+// llama-server binary path, interface language). Unlike Config, they are not
+// bound to a model and are saved once.
 type Settings struct {
-	WebHost string `json:"webHost"`
-	WebPort int    `json:"webPort"`
+	WebHost     string `json:"webHost"`
+	WebPort     int    `json:"webPort"`
+	ModelDir    string `json:"modelDir"`
+	LlamaServer string `json:"llamaServer"`
+	Lang        string `json:"lang"`
 }
 
-// settings — active web settings; initialized in main from the saved ones plus flags.
+// validLang reports whether s is a supported interface language code.
+func validLang(s string) bool {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "en", "ru":
+		return true
+	}
+	return false
+}
+
+// settings — active application settings; initialized in main from the saved
+// ones plus flags/env.
 var settings Settings
 
 // settingsFileName — the web-settings filename.
 const settingsFileName = "webui-settings.json"
+
+// explicitConfigPath, when set via setConfigPath (the --config flag), overrides
+// the settings-file location.
+var explicitConfigPath string
+
+// setConfigPath overrides the settings-file location. Empty paths are ignored.
+func setConfigPath(p string) {
+	if strings.TrimSpace(p) != "" {
+		explicitConfigPath = p
+	}
+}
 
 // boundAddr — the actual bound address (may differ from the requested one,
 // if a free port was used). Set in main after listenWithFallback.
@@ -58,13 +83,37 @@ var applyReexec = func(host, port string) {
 	}()
 }
 
-// settingsPath returns the path to the settings file in ConfigDir.
+// settingsPath returns the path to the settings file. An explicit path (from
+// the --config flag) takes precedence; otherwise it is ConfigDir + filename.
 func settingsPath() string {
+	if explicitConfigPath != "" {
+		return explicitConfigPath
+	}
 	dir := strings.TrimRight(app.ConfigDir, "/")
 	if dir == "" {
 		return settingsFileName
 	}
 	return dir + "/" + settingsFileName
+}
+
+// persistSettingsIfMissing writes the current effective settings to disk only
+// when the settings file does not already exist. This lets the configuration
+// be created on the first launch without needing the --config flag. A missing,
+// invalid, or unwritable config never fails startup: the in-memory defaults are
+// kept and a note is logged.
+func persistSettingsIfMissing() {
+	if fileExists(settingsPath()) {
+		return
+	}
+	if err := settings.validate(); err != nil {
+		log.Printf("settings: not creating %s (using defaults): %v", settingsPath(), err)
+		return
+	}
+	if err := settings.save(); err != nil {
+		log.Printf("settings: could not create %s: %v", settingsPath(), err)
+		return
+	}
+	log.Printf("settings: wrote %s", settingsPath())
 }
 
 // loadSettings reads the saved web settings; on missing or invalid ones, uses defaults.
@@ -128,12 +177,15 @@ func listenWithFallback(addr string) (net.Listener, string, error) {
 	return free, free.Addr().String(), nil
 }
 
-// handleSettingsGet returns the current web settings and the actual address.
+// handleSettingsGet returns the current application settings and the actual address.
 func handleSettingsGet(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{
-		"webHost":   settings.WebHost,
-		"webPort":   strconv.Itoa(settings.WebPort),
-		"boundAddr": boundAddr,
+		"webHost":     settings.WebHost,
+		"webPort":     strconv.Itoa(settings.WebPort),
+		"boundAddr":   boundAddr,
+		"modelDir":    settings.ModelDir,
+		"llamaServer": settings.LlamaServer,
+		"lang":        settings.Lang,
 	})
 }
 
@@ -142,6 +194,7 @@ func handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		WebHost string `json:"webHost"`
 		WebPort string `json:"webPort"`
+		Lang    string `json:"lang"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json")
@@ -152,29 +205,38 @@ func handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 	if n, err := strconv.Atoi(strings.TrimSpace(req.WebPort)); err == nil {
 		port = n
 	}
-	newSettings := Settings{WebHost: strings.TrimSpace(req.WebHost), WebPort: port}
+	lang := settings.Lang
+	if strings.TrimSpace(req.Lang) != "" && validLang(req.Lang) {
+		lang = strings.ToLower(strings.TrimSpace(req.Lang))
+	}
+	newSettings := Settings{
+		WebHost:     strings.TrimSpace(req.WebHost),
+		WebPort:     port,
+		ModelDir:    settings.ModelDir,
+		LlamaServer: settings.LlamaServer,
+		Lang:        lang,
+	}
 	if err := newSettings.validate(); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	// No changes — confirm without restart.
-	if newSettings.WebHost == settings.WebHost && newSettings.WebPort == settings.WebPort {
-		writeJSON(w, okSettings(false))
-		return
-	}
-
-	prev := settings
+	// Only the bind address triggers a process replacement; everything else
+	// (language, model dir, llama-server path) is applied in place.
+	restarted := newSettings.WebHost != settings.WebHost || newSettings.WebPort != settings.WebPort
 	if err := newSettings.save(); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	settings = newSettings
-	writeJSON(w, okSettings(true))
+	result := okSettings(restarted)
+	result["lang"] = settings.Lang
+	writeJSON(w, result)
 
 	// The process is replaced after the response is sent (goroutine) so the client gets it.
-	applyReexec(settings.WebHost, strconv.Itoa(settings.WebPort))
-	_ = prev
+	if restarted {
+		applyReexec(settings.WebHost, strconv.Itoa(settings.WebPort))
+	}
 }
 
 func okSettings(restarted bool) map[string]any {
@@ -185,6 +247,68 @@ func okSettings(restarted bool) map[string]any {
 		"boundAddr": boundAddr,
 		"restarted": restarted,
 	}
+}
+
+// handleModelDirSet changes the model directory at runtime without restarting
+// the server: it validates the directory, updates app.ModelRoot in place,
+// persists the new setting, and returns so the UI can reload the model list.
+func handleModelDirSet(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ModelDir string `json:"modelDir"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	modelDir := strings.TrimSpace(req.ModelDir)
+	if modelDir == "" {
+		writeError(w, http.StatusBadRequest, "model dir not specified")
+		return
+	}
+	fi, err := os.Stat(modelDir)
+	if err != nil || !fi.IsDir() {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("model dir not found or not a directory: %s", modelDir))
+		return
+	}
+	if app.ModelRoot == modelDir && settings.ModelDir == modelDir {
+		writeJSON(w, map[string]any{"ok": true, "modelDir": modelDir, "restarted": false})
+		return
+	}
+	app.ModelRoot = modelDir
+	settings.ModelDir = modelDir
+	if err := settings.save(); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, map[string]any{"ok": true, "modelDir": modelDir, "restarted": false})
+}
+
+// handleLlamaServerSet updates the llama-server binary path at runtime without
+// restarting. The value takes effect the next time a model is started.
+func handleLlamaServerSet(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		LlamaServer string `json:"llamaServer"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	llamaServer := strings.TrimSpace(req.LlamaServer)
+	if llamaServer == "" {
+		writeError(w, http.StatusBadRequest, "llama-server path not specified")
+		return
+	}
+	if strings.TrimSpace(llamaServer) == settings.LlamaServer && app.LlamaServer == llamaServer {
+		writeJSON(w, map[string]any{"ok": true, "llamaServer": llamaServer})
+		return
+	}
+	settings.LlamaServer = llamaServer
+	app.LlamaServer = llamaServer
+	if err := settings.save(); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, map[string]any{"ok": true, "llamaServer": llamaServer})
 }
 
 // rebuildWebArgs drops the web-host/web-port flags so the new values
