@@ -133,7 +133,40 @@ else
 fi
 
 printf 'installed %s -> %s\n' "$bin_name" "$target"
-case "$install_dir" in
-  */.local/bin|/root/.local/bin)
-    printf 'make sure %s is on your PATH\n' "$install_dir" ;;
+
+# --- PATH setup -------------------------------------------------------
+path_contains() {
+  case ":$PATH:" in
+    *":$1:"*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+shell="$(basename "${SHELL:-/bin/sh}")"
+case "$shell" in
+  bash) kind=bash;  rc="${HOME:-/root}/.bashrc" ;;
+  zsh)  kind=bash;  rc="${HOME:-/root}/.zshrc" ;;
+  fish) kind=fish;  rc="${HOME:-/root}/.config/fish/config.fish" ;;
+  *)    kind=bash;  rc="${HOME:-/root}/.profile" ;;
 esac
+if [ "$kind" = fish ]; then
+  line="set -gx PATH \"$install_dir:\$PATH\""
+else
+  line="export PATH=\"$install_dir:\$PATH\""
+fi
+
+if path_contains "$install_dir"; then
+  printf '%s is already on your PATH\n' "$install_dir"
+elif [ -f "$rc" ] && grep -qF "$install_dir" "$rc"; then
+  printf '%s is already configured in %s\n' "$install_dir" "$rc"
+  printf '(open a new shell, or run: source %s)\n' "$rc"
+else
+  if [ -w "$(dirname "$rc")" ]; then
+    [ "$kind" = fish ] && mkdir -p "$(dirname "$rc")"
+    printf '%s\n' "$line" >> "$rc"
+    printf 'added %s to %s\n' "$install_dir" "$rc"
+  else
+    printf '%s is not writable (add it manually, possibly with sudo)\n' "$rc"
+  fi
+  printf 'run this now: %s\n' "$line"
+fi

@@ -80,4 +80,16 @@ must_fail --version v4.4.4 --dest /tmp/it_missing
 echo "== 7) help exits 0"
 bash "$script" -h >/dev/null 2>&1 || { echo "FAIL: help"; fail=1; }
 
+echo "== 8) PATH appends export to rc file (default ~/.local/bin) =="
+fake_home="$(mktemp -d)"
+HOME="$fake_home" SHELL=/bin/bash RELEASE_BASE_URL="$base" bash "$script" >/tmp/it_path.log 2>&1
+rc="$fake_home/.bashrc"
+if [ -f "$rc" ] && grep -qF "$fake_home/.local/bin" "$rc"; then echo "ok: rc updated"; else echo "FAIL: rc not updated"; cat /tmp/it_path.log; fail=1; fi
+
+echo "== 9) PATH idempotent (re-run does not duplicate) =="
+HOME="$fake_home" SHELL=/bin/bash RELEASE_BASE_URL="$base" bash "$script" >/dev/null 2>&1
+count=$(grep -cF "$fake_home/.local/bin" "$rc" || true)
+if [ "$count" -eq 1 ]; then echo "ok: single entry"; else echo "FAIL: $count entries"; fail=1; fi
+rm -rf "$fake_home"
+
 [ "$fail" -eq 0 ] && echo "INSTALLER TESTS PASSED" || { echo "INSTALLER TESTS FAILED" >&2; exit 1; }
