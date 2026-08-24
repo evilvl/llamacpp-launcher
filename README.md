@@ -49,16 +49,12 @@ The service unit `ExecStart` is built as ordered segments: `binary`, `-m model`,
 
 | File | Purpose |
 |------|---------|
-| `main.go` | CLI flags, env wiring, HTTP routes, embedded UI |
-| `config.go` | `Config`, default flags, `parseConfigFile`, atomic `save`, `buildExecStart` |
-| `presets.go` | Built-in launch presets: `Preset` type, templates, `findPreset`, `apply` |
-| `flags.go` | `--help` parser: `Kind` (toggle/enum/value), choices, sorting |
-| `service.go` | unit generation, start/stop/restart, health wait, inference test |
-| `discover.go` | recursive `.gguf` discovery in `MODEL_ROOT`, human-readable sizes |
-| `handlers.go` | JSON endpoints for models / config / flags / status / logs |
-| `ui/index.html` | embedded single-page UI + i18n table |
+| `cmd/llamacpp-launcher/*.go` | Go source: `main.go` (CLI flags, env wiring, HTTP routes), `config.go` (`Config`, default flags, atomic `save`, `buildExecStart`), `presets.go`, `flags.go` (`--help` parser), `service.go` (systemd unit + start/stop/restart/health), `discover.go` (`.gguf` discovery), `handlers.go` (JSON endpoints) |
+| `cmd/llamacpp-launcher/ui/index.html` | embedded single-page UI + i18n table (referenced via `//go:embed ui/index.html`) |
 | `flake.nix` | Nix flake: `nix build .` (package), `nix develop` (dev shell), `nix flake check` (go vet + go test + UI/i18n + gofmt), `nix fmt` (nixfmt) |
-| `tests/` | Go unit tests + `tests/ui_i18n.test.mjs` (Node) — both run under `nix flake check` |
+| `tests/` | `tests/ui_i18n.test.mjs` (Node) — runs the embedded page in a `vm` sandbox; both run under `nix flake check` |
+
+The Go binary lives under `cmd/` (idiomatic entry-point layout); `go.mod` stays at the repo root and defines the module `llamacpp-launcher`.
 
 ---
 
@@ -137,7 +133,7 @@ curl -s -XPOST localhost:8080/api/config \
 
 The UI ships in English by default with a Russian translation. The selected language is persisted in `localStorage` and mirrored to the `lang` attribute of `<html>`; if the browser language is non-English it is used as the default, falling back to English.
 
-Translations live in the `I18N` table in `ui/index.html`:
+Translations live in the `I18N` table in `cmd/llamacpp-launcher/ui/index.html`:
 
 ```js
 const I18N = { en: { search: "Search models", ... }, ru: { search: "Поиск моделей", ... } };

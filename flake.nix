@@ -43,7 +43,7 @@
               export HOME=$TMPDIR
               export GOCACHE=$TMPDIR/go-build
 
-              go build -o dist/llamacpp-launcher .
+              go build -o dist/llamacpp-launcher ./cmd/llamacpp-launcher
             '';
 
             installPhase = ''
@@ -67,7 +67,7 @@
               export CGO_ENABLED=0
 
               go vet ./...
-              go build -o llamacpp-launcher .
+              go build -o llamacpp-launcher ./cmd/llamacpp-launcher
 
               echo BUILD_OK
 

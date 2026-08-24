@@ -1,4 +1,4 @@
-// UI / i18n tests for ui/index.html
+// UI / i18n tests for cmd/llamacpp-launcher/ui/index.html
 // Runs the page's <script> in a sandbox with a mocked DOM/localStorage/navigator/fetch,
 // then exercises the i18n logic (default EN, language dropdown, fallback, extensibility).
 import { readFileSync } from 'node:fs';
@@ -8,7 +8,7 @@ import vm from 'node:vm';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
-const html = readFileSync(join(ROOT, 'ui', 'index.html'), 'utf8');
+const html = readFileSync(join(ROOT, 'cmd', 'llamacpp-launcher', 'ui', 'index.html'), 'utf8');
 
 let failures = 0;
 function check(name, cond) {
