@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-// ModelInfo — информация о модели для списка в интерфейсе.
+// ModelInfo is model information for the list in the UI.
 type ModelInfo struct {
 	Path      string `json:"path"`
 	Name      string `json:"name"`
@@ -17,8 +17,8 @@ type ModelInfo struct {
 	HasConfig bool   `json:"has_config"`
 }
 
-// discoverModels находит все .gguf файлы в MODEL_ROOT (рекурсивно), отсортирует по имени.
-// Файлы вида *.gguf.part (незавершённая загрузка) пропускаются — как в configure-llama-cpp.
+// discoverModels finds all .gguf files in MODEL_ROOT (recursively), sorted by name.
+// Files of the form *.gguf.part (an incomplete download) are skipped, as in configure-llama-cpp.
 func discoverModels() ([]ModelInfo, error) {
 	info, err := os.Stat(app.ModelRoot)
 	if err != nil {
@@ -72,7 +72,7 @@ func fileExists(path string) bool {
 	return err == nil && !info.IsDir()
 }
 
-// humanSize форматирует размер в человек-читаемый вид (аналог human_size из bash).
+// humanSize formats a size into a human-readable form (analog of human_size from bash).
 func humanSize(n int64) string {
 	const unit = 1024
 	if n < unit {

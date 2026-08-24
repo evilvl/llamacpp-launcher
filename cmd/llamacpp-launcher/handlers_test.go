@@ -37,7 +37,7 @@ func TestModelsAndConfig(t *testing.T) {
 	}
 	app = appConfig{ModelRoot: root, ConfigDir: configDir, WaitTimeout: 600}
 
-	// models: один, без конфига
+	// models: one, without config
 	rec := httptest.NewRecorder()
 	handleModels(rec, httptest.NewRequest(http.MethodGet, "/api/models", nil))
 	var mr struct {
@@ -48,7 +48,7 @@ func TestModelsAndConfig(t *testing.T) {
 		t.Fatalf("unexpected models: %+v", mr.Models)
 	}
 
-	// config get — дефолты
+	// config get — defaults
 	rec = httptest.NewRecorder()
 	handleConfigGet(rec, httptest.NewRequest(http.MethodGet, "/api/config?model="+m, nil))
 	var cfg Config

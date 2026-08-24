@@ -7,19 +7,19 @@ import (
 	"strings"
 )
 
-// Kind классифицирует тип флага для построения формы.
+// Kind classifies the flag type for building the form.
 type Kind string
 
 const (
-	KindToggle Kind = "toggle" // переключатель, без аргумента (--perf/--no-perf)
-	KindEnum   Kind = "enum"   // выбор из списка ([on|off] или {a,b,c})
-	KindValue  Kind = "value"  // принимает произвольное значение (N, TYPE, FNAME...)
+	KindToggle Kind = "toggle" // switch, no argument (--perf/--no-perf)
+	KindEnum   Kind = "enum"   // choose from a list ([on|off] or {a,b,c})
+	KindValue  Kind = "value"  // takes an arbitrary value (N, TYPE, FNAME...)
 )
 
-// FlagDef — описание одного аргумента llama-server (из --help).
+// FlagDef describes one llama-server argument (from --help).
 type FlagDef struct {
-	Canonical string   `json:"name"`    // основное имя, например --gpu-layers
-	Aliases   []string `json:"aliases"` // все короткие/длинные имена
+	Canonical string   `json:"name"`    // main name, e.g. --gpu-layers
+	Aliases   []string `json:"aliases"` // all short/long names
 	Kind      Kind     `json:"kind"`
 	Choices   []string `json:"choices,omitempty"`
 	Default   string   `json:"default"`
@@ -28,16 +28,16 @@ type FlagDef struct {
 
 var (
 	reDefault = regexp.MustCompile(`\(default: ([^)]+?)\)`)
-	// Токен-опция: -t, --threads, --no-perf и т.п.
+	// Token option: -t, --threads, --no-perf, etc.
 	reOpt = regexp.MustCompile(`^-+[a-z0-9][a-z0-9-]*$`)
 )
 
-// knownRange — аргументы вида `lo-hi`, которые не начинаются с заглавной/скобки.
+// knownRange describes `lo-hi`-shaped arguments that do not start with an uppercase letter or parenthesis.
 var knownRange = map[string]bool{"lo-hi": true}
 
 func isOpt(tok string) bool { return reOpt.MatchString(tok) }
 
-// parseFlagLine разбирает одну строку help'а с описанием флага.
+// parseFlagLine parses one help line with the flag description.
 func parseFlagLine(line string) (*FlagDef, bool) {
 	fields := strings.Fields(line)
 	if len(fields) == 0 {
@@ -58,7 +58,7 @@ func parseFlagLine(line string) (*FlagDef, bool) {
 		return nil, false
 	}
 
-	// Canonical — первый длинный alias (после --).
+	// Canonical is the first long alias (after --).
 	canonical := ""
 	for _, n := range names {
 		if strings.HasPrefix(n, "--") && canonical == "" {
@@ -71,8 +71,8 @@ func parseFlagLine(line string) (*FlagDef, bool) {
 
 	flag := &FlagDef{Canonical: canonical, Aliases: names}
 
-	// Enum (on|off / {a,b,c}) проверяем до свободных значений: isArgToken
-	// считает [...] и {...} токенами значений, иначе enum затерялся бы.
+	// Enum (on|off / {a,b,c}) is checked before free values: isArgToken
+	// treats [...] and {...} as value tokens, otherwise the enum would be lost.
 	if i < len(fields) {
 		arg := fields[i]
 		if strings.HasPrefix(arg, "[") || strings.HasPrefix(arg, "{") {
@@ -92,7 +92,7 @@ func parseFlagLine(line string) (*FlagDef, bool) {
 		flag.Default = strings.Trim(m[1], `"'`)
 	}
 
-	// Описание — всё, что после аргумента (или после имён).
+	// Description: everything after the argument (or after the names).
 	descStart := i
 	if flag.Kind != KindToggle {
 		descStart = i + 1
@@ -122,7 +122,7 @@ func extractChoices(arg string) []string {
 	inner = strings.TrimSuffix(inner, "]")
 	inner = strings.TrimSuffix(inner, "}")
 
-	// Варианты разделяются либо |, либо , — зависит от сборки --help.
+	// Options are separated by either | or , depending on the --help build.
 	parts := strings.Split(inner, "|")
 	if len(parts) == 1 {
 		parts = strings.Split(inner, ",")
@@ -137,7 +137,7 @@ func extractChoices(arg string) []string {
 	return out
 }
 
-// parseHelp разбирает полный вывод --help, отбрасывая строки секций.
+// parseHelp parses the full --help output, discarding section header lines.
 func parseHelp(output string) []FlagDef {
 	var flags []FlagDef
 	seen := map[string]bool{}
@@ -158,7 +158,7 @@ func parseHelp(output string) []FlagDef {
 	return flags
 }
 
-// loadFlags загружает список флагов из вывода llama-server --help (если бинарник доступен).
+// loadFlags loads the flag list from the llama-server --help output (if the binary is available).
 func loadFlags() []FlagDef {
 	if app.LlamaServer == "" {
 		return nil
@@ -170,7 +170,7 @@ func loadFlags() []FlagDef {
 	return parseHelp(string(out))
 }
 
-// sortFlags сортирует флаги по имени для детерминированного вывода.
+// sortFlags sorts flags by name for deterministic output.
 func sortFlags(flags []FlagDef) []FlagDef {
 	out := make([]FlagDef, len(flags))
 	copy(out, flags)

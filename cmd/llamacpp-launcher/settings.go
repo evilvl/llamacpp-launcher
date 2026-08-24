@@ -14,26 +14,26 @@ import (
 	"time"
 )
 
-// Settings — глобальные настройки веб-сервера (адрес привязки).
-// В отличие от Config не привязаны к модели и сохраняются один раз.
+// Settings — global web-server settings (bind address).
+// Unlike Config, they are not bound to a model and are saved once.
 type Settings struct {
 	WebHost string `json:"webHost"`
 	WebPort int    `json:"webPort"`
 }
 
-// settings — активные веб-настройки; инициализируются в main из сохранённых + флагов.
+// settings — active web settings; initialized in main from the saved ones plus flags.
 var settings Settings
 
-// settingsFileName — имя файла сохранения веб-настроек.
+// settingsFileName — the web-settings filename.
 const settingsFileName = "webui-settings.json"
 
-// boundAddr — фактический привязанный адрес (может отличаться от запрашиваемого,
-// если использовался свободный порт). Заполняется в main после listenWithFallback.
+// boundAddr — the actual bound address (may differ from the requested one,
+// if a free port was used). Set in main after listenWithFallback.
 var boundAddr string
 
-// applyReexec запускает замену процесса с новыми web-настройками: стартует новый
-// процесс, ждёт, пока он примет запросы на новом порту, и после отправки ответа
-// завершает родительский процесс. В тестах заменяется на заглушку.
+// applyReexec runs process replacement with new web settings: it starts a new
+// process, waits until it accepts requests on the new port, and after sending the
+// response terminates the parent process. In tests it's replaced by a stub.
 var applyReexec = func(host, port string) {
 	go func() {
 		cmd, err := reexecCommand(host, port)
@@ -58,7 +58,7 @@ var applyReexec = func(host, port string) {
 	}()
 }
 
-// settingsPath возвращает путь к файлу настроек в ConfigDir.
+// settingsPath returns the path to the settings file in ConfigDir.
 func settingsPath() string {
 	dir := strings.TrimRight(app.ConfigDir, "/")
 	if dir == "" {
@@ -67,7 +67,7 @@ func settingsPath() string {
 	return dir + "/" + settingsFileName
 }
 
-// loadSettings читает сохранённые веб-настройки; при отсутствии или некорректности — дефолты.
+// loadSettings reads the saved web settings; on missing or invalid ones, uses defaults.
 func loadSettings() Settings {
 	b, err := os.ReadFile(settingsPath())
 	if err != nil {
@@ -80,7 +80,7 @@ func loadSettings() Settings {
 	return s
 }
 
-// saveSettings атомарно сохраняет веб-настройки.
+// saveSettings atomically saves the web settings.
 func (s Settings) save() error {
 	dir := strings.TrimRight(app.ConfigDir, "/")
 	if dir != "" {
@@ -99,22 +99,22 @@ func (s Settings) save() error {
 	return os.Rename(tmp, settingsPath())
 }
 
-// validate проверяет корректность настроек.
+// validate checks the settings.
 func (s Settings) validate() error {
 	if s.WebPort < 1 || s.WebPort > 65535 {
-		return fmt.Errorf("порт вне диапазона 1-65535 (получено %d)", s.WebPort)
+		return fmt.Errorf("port out of range 1-65535 (got %d)", s.WebPort)
 	}
 	if strings.TrimSpace(s.WebHost) == "" {
-		return errors.New("хост не указан")
+		return errors.New("host not specified")
 	}
 	if strings.ContainsAny(s.WebHost, "/ \t\n") {
-		return fmt.Errorf("некорректный хост: %q", s.WebHost)
+		return fmt.Errorf("invalid host: %q", s.WebHost)
 	}
 	return nil
 }
 
-// listenWithFallback слушает запрошенный адрес; если он занят — переключается на
-// свободный порт, выбранный ОС (127.0.0.1:0), и сообщает фактический адрес.
+// listenWithFallback listens on the requested address; if it's busy, falls back to
+// a free port chosen by the OS (127.0.0.1:0) and reports the actual address.
 func listenWithFallback(addr string) (net.Listener, string, error) {
 	ln, err := net.Listen("tcp", addr)
 	if err == nil {
@@ -122,13 +122,13 @@ func listenWithFallback(addr string) (net.Listener, string, error) {
 	}
 	free, ferr := net.Listen("tcp", "127.0.0.1:0")
 	if ferr != nil {
-		return nil, "", fmt.Errorf("не удалось связаться с %s и найти свободный порт: %w", addr, ferr)
+		return nil, "", fmt.Errorf("could not bind %s and find a free port: %w", addr, ferr)
 	}
-	log.Printf("внимание: %s занят, веб-интерфейс запущен на свободном порту %s", addr, free.Addr().String())
+	log.Printf("warning: %s is in use, web UI started on free port %s", addr, free.Addr().String())
 	return free, free.Addr().String(), nil
 }
 
-// handleSettingsGet возвращает текущие веб-настройки и фактический адрес.
+// handleSettingsGet returns the current web settings and the actual address.
 func handleSettingsGet(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{
 		"webHost":   settings.WebHost,
@@ -137,7 +137,7 @@ func handleSettingsGet(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleSettingsSave сохраняет новые веб-настройки и запускает замену процесса.
+// handleSettingsSave saves the new web settings and triggers process replacement.
 func handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		WebHost string `json:"webHost"`
@@ -158,7 +158,7 @@ func handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Никаких изменений — подтверждаем без рестарта.
+	// No changes — confirm without restart.
 	if newSettings.WebHost == settings.WebHost && newSettings.WebPort == settings.WebPort {
 		writeJSON(w, okSettings(false))
 		return
@@ -172,7 +172,7 @@ func handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 	settings = newSettings
 	writeJSON(w, okSettings(true))
 
-	// Процесс заменяется после отправки ответа (goroutine), чтобы клиент его получил.
+	// The process is replaced after the response is sent (goroutine) so the client gets it.
 	applyReexec(settings.WebHost, strconv.Itoa(settings.WebPort))
 	_ = prev
 }
@@ -187,16 +187,16 @@ func okSettings(restarted bool) map[string]any {
 	}
 }
 
-// rebuildWebArgs отбрасывает флаги web-host/web-port из аргументов, чтобы новые значения
-// пришли из окружения (LLAMA_WEB_HOST / LLAMA_WEB_PORT), а не затерлись старыми флагами.
+// rebuildWebArgs drops the web-host/web-port flags so the new values
+// come from the environment (LLAMA_WEB_HOST / LLAMA_WEB_PORT), not the old flags.
 func rebuildWebArgs(args []string) []string {
 	var out []string
 	for i := 0; i < len(args); i++ {
 		switch a := args[i]; {
 		case a == "--web-host" || a == "--web-port":
-			i++ // пропускаем значение
+			i++ // skip the value
 		case strings.HasPrefix(a, "--web-host="), strings.HasPrefix(a, "--web-port="):
-			// уже внутри токена — просто пропускаем
+			// already inside the token — just skip it
 		default:
 			out = append(out, a)
 		}
@@ -204,7 +204,7 @@ func rebuildWebArgs(args []string) []string {
 	return out
 }
 
-// setEnv устанавливает переменную окружения, заменяя все старые определения ключа.
+// setEnv sets the environment variable, replacing all old definitions of the key.
 func setEnv(env []string, key, val string) []string {
 	out := make([]string, 0, len(env)+1)
 	for _, e := range env {
@@ -215,7 +215,7 @@ func setEnv(env []string, key, val string) []string {
 	return append(out, key+"="+val)
 }
 
-// reexecCommand собирает команду для перезапуска процесса с новыми web-направленными настройками.
+// reexecCommand builds the command to restart the process with new web settings.
 func reexecCommand(host, port string) (*exec.Cmd, error) {
 	exe, err := os.Executable()
 	if err != nil {
@@ -226,7 +226,7 @@ func reexecCommand(host, port string) (*exec.Cmd, error) {
 	return cmd, nil
 }
 
-// waitForReady возвращает true, если http://addr/api/version отвечает 200 внутри таймаута.
+// waitForReady returns true if http://addr/api/version responds 200 within the timeout.
 func waitForReady(addr string, timeout time.Duration) bool {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {

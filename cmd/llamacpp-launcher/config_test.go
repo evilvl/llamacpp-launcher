@@ -29,7 +29,7 @@ func TestParseSaveRoundTrip(t *testing.T) {
 	model := "/opt/models/qwen2.5-7b-instruct-q4_k_m.gguf"
 	path := configPathFor(model)
 
-	// сначала сохраним дефолтный конфиг
+	// first save the default config
 	orig := defaultConfig(model)
 	orig.Flags["--host"] = "0.0.0.0"
 	orig.Flags["--port"] = "8080"
@@ -42,7 +42,7 @@ func TestParseSaveRoundTrip(t *testing.T) {
 		t.Fatalf("config file not created: %s", path)
 	}
 
-	// прочитаем обратно
+	// read it back
 	got, err := parseConfigFile(path, model)
 	if err != nil {
 		t.Fatalf("parse: %v", err)
@@ -79,7 +79,7 @@ func TestLoadActiveConfig(t *testing.T) {
 
 func TestDiscoverModels(t *testing.T) {
 	root := t.TempDir()
-	// создаем .gguf и лишний .part (должен игнорироваться)
+	// create a .gguf and an extra .part (should be ignored)
 	m1 := filepath.Join(root, "a.gguf")
 	m2 := filepath.Join(root, "sub", "b.gguf")
 	partial := filepath.Join(root, "c.gguf.part")

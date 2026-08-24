@@ -11,13 +11,13 @@ import (
 	"strings"
 )
 
-// Config — конфигурация модели: путь + набор активных флагов llama-server.
+// Config is the model configuration: path + set of active llama-server flags.
 type Config struct {
 	Model string            `json:"model"`
 	Flags map[string]string `json:"flags"`
 }
 
-// defaultConfig — пустой конфиг с дефолтами, подставляемыми из --help при открытии.
+// defaultConfig is an empty config with defaults filled in from --help on open.
 func defaultConfig(model string) *Config {
 	th := runtime.NumCPU()
 	return &Config{
@@ -39,7 +39,7 @@ func defaultConfig(model string) *Config {
 	}
 }
 
-// formatFlagValue приведёт значение флага из JSON (строка/число/bool) к строке.
+// formatFlagValue converts a flag value from JSON (string/number/bool) to a string.
 func formatFlagValue(v any) string {
 	switch s := v.(type) {
 	case string:
@@ -55,7 +55,7 @@ func formatFlagValue(v any) string {
 	}
 }
 
-// configPath возвращает путь к файлу конфига для модели.
+// configPath returns the path to the config file for a model.
 func configPathFor(model string) string {
 	base := sanitize(strings.TrimSuffix(filepath.Base(model), ".gguf"))
 	if base == "" {
@@ -64,8 +64,8 @@ func configPathFor(model string) string {
 	return filepath.Join(app.ConfigDir, base+".conf")
 }
 
-// loadActiveConfig возвращает конфиг для модели: базовые дефолты, подтянутые
-// с диска, если файл конфига существует (иначе — чистые дефолты).
+// loadActiveConfig returns the config for a model: base defaults, overlaid
+// from disk if the config file exists (otherwise pure defaults).
 func loadActiveConfig(model string) *Config {
 	p := configPathFor(model)
 	if !fileExists(p) {
@@ -77,7 +77,7 @@ func loadActiveConfig(model string) *Config {
 	return defaultConfig(model)
 }
 
-// unquoteShell извлекает значение из shell-строки: "двойные", 'одинарные' или без кавычек.
+// unquoteShell extracts the value from a shell string: double, single or unquoted.
 func unquoteShell(s string) string {
 	s = strings.TrimSpace(s)
 	if len(s) >= 2 {
@@ -116,7 +116,7 @@ func unquoteShell(s string) string {
 	return b.String()
 }
 
-// parseConfigFile читает KEY=value файл конфига в map.
+// parseConfigFile reads a KEY=value config file into a map.
 func parseConfigFile(path, model string) (*Config, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -143,7 +143,7 @@ func parseConfigFile(path, model string) (*Config, error) {
 	return cfg, sc.Err()
 }
 
-// save записывает конфиг атомарно (tmp + rename).
+// save writes the config atomically (tmp + rename).
 func (c *Config) save() error {
 	if err := os.MkdirAll(app.ConfigDir, 0o755); err != nil {
 		return err
@@ -170,8 +170,8 @@ func (c *Config) save() error {
 	return os.Rename(tmp, p)
 }
 
-// buildExecStart строит аргументы команды ExecStart как строки вида «флаг значение».
-// Первый элемент — сам бинарник. Переключатели (toggle) без значения идут одиночными.
+// buildExecStart builds the ExecStart command args as strings like 'flag value'.
+// The first element is the binary itself. Toggle flags without a value go alone.
 func (c *Config) buildExecStart(binary string) []string {
 	var segs []string
 	add := func(flag, val string) {
@@ -211,7 +211,7 @@ func (c *Config) buildExecStart(binary string) []string {
 		add(k, v)
 	}
 
-	// Произвольные аргументы, которые не удалось подобрать под форму.
+	// Arbitrary arguments that did not fit the form.
 	if raw := strings.TrimSpace(c.Flags["__extra__"]); raw != "" {
 		for _, f := range strings.Fields(raw) {
 			segs = append(segs, f)
@@ -237,7 +237,7 @@ func isTrueValue(v string) bool {
 	return false
 }
 
-// portFromConfig читает --port из конфига, по умолчанию 8080.
+// portFromConfig reads --port from the config, defaulting to 8080.
 func portFromConfig(c *Config) int {
 	if v, ok := c.Flags["--port"]; ok {
 		if n, err := strconv.Atoi(v); err == nil {
@@ -247,7 +247,7 @@ func portFromConfig(c *Config) int {
 	return 8080
 }
 
-// hostFromConfig читает --host из конфига, по умолчанию 0.0.0.0.
+// hostFromConfig reads --host from the config, defaulting to 0.0.0.0.
 func hostFromConfig(c *Config) string {
 	if v, ok := c.Flags["--host"]; ok {
 		return v
@@ -255,7 +255,7 @@ func hostFromConfig(c *Config) string {
 	return "0.0.0.0"
 }
 
-// apiKeyFromConfig читает --api-key из конфига, по умолчанию пустая строка.
+// apiKeyFromConfig reads --api-key from the config, defaulting to empty.
 func apiKeyFromConfig(c *Config) string {
 	return c.Flags["--api-key"]
 }

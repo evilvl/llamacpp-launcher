@@ -62,7 +62,7 @@ Options (all optional):
 ```bash
 # Pin a specific release instead of latest
 RELEASE_BASE_URL=https://github.com/evilvl/llamacpp-launcher/releases \
-  bash scripts/install.sh --version v0.1.0
+  bash scripts/install.sh --version v0.1.1
 
 # Choose the install directory (default: ~/.local/bin; uses sudo when needed)
 RELEASE_BASE_URL=... bash scripts/install.sh --dest ~/.local/bin

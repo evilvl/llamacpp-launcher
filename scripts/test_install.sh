@@ -33,15 +33,15 @@ trap cleanup EXIT
 
 tree="$tmp_root/fake"
 mkdir -p "$tree/releases/latest/download" \
-         "$tree/releases/download/v0.1.0" \
+         "$tree/releases/download/v0.1.1" \
          "$tree/releases/download/v0.9.9"
 
-printf 'FAKE-0.1.0-amd64\n' > "$tree/releases/download/v0.1.0/$name-linux-amd64"
+printf 'FAKE-0.1.1-amd64\n' > "$tree/releases/download/v0.1.1/$name-linux-amd64"
 printf 'FAKE-latest-amd64\n' > "$tree/releases/latest/download/$name-linux-amd64"
 printf 'FAKE-latest-arm64\n' > "$tree/releases/latest/download/$name-linux-arm64"
 printf 'FAKE-BAD-amd64\n'    > "$tree/releases/download/v0.9.9/$name-linux-amd64"
 
-( cd "$tree/releases/download/v0.1.0"  && sha256sum "$name-linux-amd64"  > checksums.txt )
+( cd "$tree/releases/download/v0.1.1"  && sha256sum "$name-linux-amd64"  > checksums.txt )
 ( cd "$tree/releases/latest/download"  && sha256sum "$name-linux-amd64" "$name-linux-arm64" > checksums.txt )
 echo "deadbeef  $name-linux-amd64" > "$tree/releases/download/v0.9.9/checksums.txt"
 
@@ -55,8 +55,8 @@ must_fail() { if RELEASE_BASE_URL="$base" bash "$script" "$@" >/tmp/it.log 2>&1;
 
 echo "== 1) pinned version =="
 rm -rf /tmp/it_pinned
-RELEASE_BASE_URL="$base" bash "$script" --version v0.1.0 --dest /tmp/it_pinned >/dev/null
-assert_eq "$(cat /tmp/it_pinned/$name)" "FAKE-0.1.0-amd64" "pinned content"
+RELEASE_BASE_URL="$base" bash "$script" --version v0.1.1 --dest /tmp/it_pinned >/dev/null
+assert_eq "$(cat /tmp/it_pinned/$name)" "FAKE-0.1.1-amd64" "pinned content"
 
 echo "== 2) latest =="
 rm -rf /tmp/it_latest

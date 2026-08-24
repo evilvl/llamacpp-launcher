@@ -15,7 +15,7 @@ import (
 //go:embed ui/index.html
 var uiFS embed.FS
 
-// app — глобальная конфигурация (пути, имена, таймауты).
+// app is the global configuration (paths, names, timeouts).
 type appConfig struct {
 	ModelRoot   string
 	LlamaServer string
@@ -27,15 +27,15 @@ type appConfig struct {
 
 var app = appConfig{}
 
-// appFlags — список флагов llama-server, загруженный из --help.
+// appFlags is the llama-server flag list loaded from --help.
 var appFlags []FlagDef
 
-var errNotDir = errors.New("не каталог")
+var errNotDir = errors.New("not a directory")
 
 func main() {
 	webSettings := loadSettings()
-	webHost := flag.String("web-host", envOr("LLAMA_WEB_HOST", webSettings.WebHost), "адрес веб-интерфейса")
-	webPort := flag.Int("web-port", envInt("LLAMA_WEB_PORT", webSettings.WebPort), "порт веб-интерфейса")
+	webHost := flag.String("web-host", envOr("LLAMA_WEB_HOST", webSettings.WebHost), "web UI address")
+	webPort := flag.Int("web-port", envInt("LLAMA_WEB_PORT", webSettings.WebPort), "web UI port")
 	flag.Parse()
 
 	settings = Settings{WebHost: *webHost, WebPort: *webPort}
@@ -52,16 +52,16 @@ func main() {
 	if fi, err := os.Stat(app.ModelRoot); err == nil && fi.IsDir() {
 		log.Printf("model root: %s", app.ModelRoot)
 	} else {
-		log.Printf("WARNING: model root не доступен: %s (%v)", app.ModelRoot, err)
+		log.Printf("WARNING: model root not available: %s (%v)", app.ModelRoot, err)
 	}
 	if _, err := os.Stat(app.LlamaServer); err == nil {
 		log.Printf("llama-server: %s", app.LlamaServer)
 	} else {
-		log.Printf("WARNING: llama-server не найден: %s (%v)", app.LlamaServer, err)
+		log.Printf("WARNING: llama-server not found: %s (%v)", app.LlamaServer, err)
 	}
 
 	appFlags = loadFlags()
-	log.Printf("загружено флагов llama-server: %d", len(appFlags))
+	log.Printf("loaded llama-server flags: %d", len(appFlags))
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /", handleIndex)
@@ -92,8 +92,8 @@ func main() {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	log.Printf("llamacpp-launcher слушает http://%s  (service=%s)", actual, app.ServiceName)
-	log.Printf("журнал: journalctl -u %s -f", app.ServiceName)
+	log.Printf("llamacpp-launcher listens on http://%s  (service=%s)", actual, app.ServiceName)
+	log.Printf("log: journalctl -u %s -f", app.ServiceName)
 	if err := srv.Serve(ln); err != nil {
 		log.Fatalf("server error: %v", err)
 	}

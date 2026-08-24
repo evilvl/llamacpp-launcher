@@ -13,20 +13,20 @@ import (
 	"time"
 )
 
-// runCmd выполняет команду и возвращает объединённый stdout+stderr.
+// runCmd runs a command and returns the combined stdout+stderr.
 var runCmd = func(name string, args ...string) (string, error) {
 	cmd := exec.Command(name, args...)
 	out, err := cmd.CombinedOutput()
 	return string(out), err
 }
 
-// generateUnit строит содержимое systemd-юнита для модели (аналог generate_service из bash).
+// generateUnit builds the content of the systemd unit for a model (analog of generate_service from bash).
 func generateUnit(c *Config) string {
 	unit := `[Unit]
 Description=llama.cpp LLM Coder GPU + CPU
 After=network-online.target
 Wants=network-online.target
-### OPTIMIZED: защита от частых рестартов
+### OPTIMIZED: protection against frequent restarts
 StartLimitIntervalSec=30
 StartLimitBurst=3
 
@@ -61,7 +61,7 @@ WantedBy=multi-user.target
 	return unit
 }
 
-// writeUnit атомарно записывает юнит в /etc/systemd/system.
+// writeUnit atomically writes the unit to /etc/systemd/system.
 func writeUnit(c *Config) error {
 	tmp := app.ServiceFile + ".tmp"
 	if err := os.WriteFile(tmp, []byte(generateUnit(c)), 0o644); err != nil {
@@ -70,7 +70,7 @@ func writeUnit(c *Config) error {
 	return os.Rename(tmp, app.ServiceFile)
 }
 
-// startService загружает/генерирует юнит, включает и запускает службу, ждёт /health.
+// startService loads/generates the unit, enables and starts the service, waits for /health.
 func startService(model string) (map[string]any, error) {
 	cfg := loadActiveConfig(model)
 	if err := writeUnit(cfg); err != nil {
@@ -95,7 +95,7 @@ func startService(model string) (map[string]any, error) {
 	return st, werr
 }
 
-// stopService останавливает службу.
+// stopService stops the service.
 func stopService() (map[string]any, error) {
 	if _, err := runCmd("systemctl", "stop", app.ServiceName); err != nil {
 		return status(), err
@@ -103,7 +103,7 @@ func stopService() (map[string]any, error) {
 	return status(), nil
 }
 
-// restartService перезапускает службу.
+// restartService restarts the service.
 func restartService() (map[string]any, error) {
 	if _, err := runCmd("systemctl", "restart", app.ServiceName); err != nil {
 		return status(), err
@@ -111,8 +111,8 @@ func restartService() (map[string]any, error) {
 	return status(), nil
 }
 
-// serviceAction оборачивает обработчики действий без модели (stop/restart):
-// вызывает переданную функцию и сериализует результат как JSON.
+// serviceAction wraps the model-less action handlers (stop/restart):
+// calls the given function and serializes the result as JSON.
 func serviceAction(do func() (map[string]any, error)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		st, err := do()
@@ -124,7 +124,7 @@ func serviceAction(do func() (map[string]any, error)) http.HandlerFunc {
 	}
 }
 
-// serviceStatus читает состояние службы через systemctl show.
+// serviceStatus reads the service state via systemctl show.
 func serviceStatus() (map[string]any, error) {
 	out, err := runCmd("systemctl", "show",
 		"-p", "ActiveState", "-p", "SubState",
@@ -147,7 +147,7 @@ func serviceStatus() (map[string]any, error) {
 	return m, nil
 }
 
-// status — безопасная обёртка над serviceStatus (не падает, если systemd недоступен).
+// status is a safe wrapper over serviceStatus (it does not fail if systemd is unavailable).
 func status() map[string]any {
 	m, err := serviceStatus()
 	if err != nil {
@@ -156,7 +156,7 @@ func status() map[string]any {
 	return m
 }
 
-// readLogs выводит последние N строк журнала службы.
+// readLogs prints the last N lines of the service log.
 func readLogs(n int) (string, error) {
 	if n <= 0 {
 		n = 100
@@ -164,7 +164,7 @@ func readLogs(n int) (string, error) {
 	return runCmd("journalctl", "-u", app.ServiceName, "-n", strconv.Itoa(n), "--no-pager")
 }
 
-// waitForHealth ожидает, пока /health не вернёт 200, или таймаут.
+// waitForHealth waits until /health returns 200, or times out.
 func waitForHealth(host string, port, timeout int) error {
 	target := port
 	if port == 0 {
@@ -183,13 +183,13 @@ func waitForHealth(host string, port, timeout int) error {
 			}
 		}
 		if time.Now().After(deadline) {
-			return fmt.Errorf("сервер не стал healthy за %d сек (http=%v)", timeout, err)
+			return fmt.Errorf("server did not become healthy within %d sec (http=%v)", timeout, err)
 		}
 		time.Sleep(2 * time.Second)
 	}
 }
 
-// inferenceTest отправляет тестовый запрос к API и разбирает ответ.
+// inferenceTest sends a test request to the API and parses the response.
 func inferenceTest(model string) (map[string]any, error) {
 	cfg := loadActiveConfig(model)
 

@@ -194,7 +194,7 @@ func TestSetEnvReplacesExisting(t *testing.T) {
 }
 
 func TestListenWithFallbackPicksFreePort(t *testing.T) {
-	// Занимаем произвольный порт, затем просим тот же адрес — должно переключиться на свободный.
+	// occupy an arbitrary port, then request the same address — it should fall back to a free one.
 	blocker, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("blocker: %v", err)

@@ -74,7 +74,7 @@ func handleConfigGet(w http.ResponseWriter, r *http.Request) {
 			flags[f.Canonical] = f.Default
 		}
 	}
-	// Сохраняем произвольные ключи, которых нет в списке флагов (например __extra__).
+	// Preserve arbitrary keys that are not in the flag list (e.g. __extra__).
 	for k, v := range cfg.Flags {
 		if _, ok := flags[k]; !ok {
 			flags[k] = v

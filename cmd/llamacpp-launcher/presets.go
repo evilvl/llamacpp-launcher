@@ -1,20 +1,20 @@
 package main
 
-// Preset — именованный шаблон флагов llama-server, применяемый к любой модели.
+// Preset is a named template of llama-server flags applied to any model.
 type Preset struct {
-	Name  string            `json:"name"`  // техническое имя (id), напр. "fast-streaming"
-	Title string            `json:"title"` // человечное имя, напр. "Fast streaming"
-	Desc  string            `json:"desc"`  // краткое описание сценария
-	Flags map[string]string `json:"flags"` // значения флагов (канонические имена)
+	Name  string            `json:"name"`  // technical name (id), e.g. "fast-streaming"
+	Title string            `json:"title"` // human-readable name, e.g. "Fast streaming"
+	Desc  string            `json:"desc"`  // short description of the scenario
+	Flags map[string]string `json:"flags"` // flag values (canonical names)
 }
 
-// presets — встроенные сценарии запуска. Значения подобраны под популярные
-// кейсы; модель и железо пользователь подбирает сам.
+// presets are the built-in startup scenarios. The values are tuned for popular
+// use cases; the user picks the model and hardware themselves.
 var presets = []Preset{
 	{
 		Name:  "fast-streaming",
 		Title: "Fast streaming",
-		Desc:  "Низкая задержка, стриминг на слове: малый контекст, много слоёв на GPU, высокий parallel.",
+		Desc:  "Low latency, word-level streaming: small context, many GPU layers, high parallel.",
 		Flags: map[string]string{
 			"--ctx-size":   "4096",
 			"--gpu-layers": "33",
@@ -26,7 +26,7 @@ var presets = []Preset{
 	{
 		Name:  "large-context",
 		Title: "Large context (32K)",
-		Desc:  "Широкий контекст для длинных документов: flash-attn + fit по VRAM.",
+		Desc:  "Wide context for long documents: flash-attn + fit to VRAM.",
 		Flags: map[string]string{
 			"--ctx-size":   "32768",
 			"--gpu-layers": "24",
@@ -39,7 +39,7 @@ var presets = []Preset{
 	{
 		Name:  "cpu-only",
 		Title: "CPU only",
-		Desc:  "Без GPU: максимум потоков CPU для инференса на процессоре.",
+		Desc:  "No GPU: maximum CPU threads for inference on the processor.",
 		Flags: map[string]string{
 			"--gpu-layers": "0",
 			"--numa":       "off",
@@ -49,7 +49,7 @@ var presets = []Preset{
 	{
 		Name:  "vram-friendly",
 		Title: "VRAM fit",
-		Desc:  "Ограниченная VRAM: fit к таргету с flash-attn, умеренное число слоёв.",
+		Desc:  "Limited VRAM: fit to target with flash-attn, moderate number of layers.",
 		Flags: map[string]string{
 			"--fit":        "on",
 			"--fit-target": "256",
@@ -60,7 +60,7 @@ var presets = []Preset{
 	},
 }
 
-// findPreset находит пресет по техническому имени.
+// findPreset finds a preset by its technical name.
 func findPreset(name string) *Preset {
 	for i := range presets {
 		if presets[i].Name == name {
@@ -70,7 +70,7 @@ func findPreset(name string) *Preset {
 	return nil
 }
 
-// apply применяет флаги пресета к конфигу (переопределяет текущие значения).
+// apply applies the preset flags to the config (overriding the current values).
 func (p *Preset) apply(c *Config) {
 	for k, v := range p.Flags {
 		c.Flags[k] = v

@@ -30,7 +30,7 @@
 
           pkg = pkgs.stdenv.mkDerivation {
             pname = "llamacpp-launcher";
-            version = "0.1.0";
+            version = "0.1.1";
 
             inherit src;
 
