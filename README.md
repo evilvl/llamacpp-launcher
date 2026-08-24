@@ -34,7 +34,7 @@ Lightweight, zero-dependency Go web UI to manage a [`llama.cpp`](https://github.
 ## How it works
 
 ```
-browser  ──HTTP──▶  llama-cpp-webui (Go, stdlib)  ──systemctl──▶  llama-coder.service
+browser  ──HTTP──▶  llamacpp-launcher (Go, stdlib)  ──systemctl──▶  llama-coder.service
                               │
                               └──── parses `llama-server --help` ─▶  flag form
                               │
@@ -57,7 +57,7 @@ The service unit `ExecStart` is built as ordered segments: `binary`, `-m model`,
 | `discover.go` | recursive `.gguf` discovery in `MODEL_ROOT`, human-readable sizes |
 | `handlers.go` | JSON endpoints for models / config / flags / status / logs |
 | `ui/index.html` | embedded single-page UI + i18n table |
-| `flake.nix` | Nix flake: `nix build .` (package), `nix develop` (dev shell), `nix flake check` (go vet + go test + UI/i18n + gofmt), `nix fmt` (alejandra) |
+| `flake.nix` | Nix flake: `nix build .` (package), `nix develop` (dev shell), `nix flake check` (go vet + go test + UI/i18n + gofmt), `nix fmt` (nixfmt) |
 | `tests/` | Go unit tests + `tests/ui_i18n.test.mjs` (Node) — both run under `nix flake check` |
 
 ---
@@ -91,13 +91,13 @@ shell — it provides go + nodejs with `CGO_ENABLED=0` by default (no gcc needed
 nix develop
 
 # Build the web server binary (static, CGO_ENABLED=0)
-nix build .          # output: ./result/bin/llama-cpp-webui
+nix build .          # output: ./result/bin/llamacpp-launcher
 
 # Run (needs read access to MODEL_ROOT and a llama-server binary)
 LLAMA_MODEL_ROOT=/opt/models \
 LLAMA_SERVER_BIN=/opt/llama-bin/llama-server \
 LLAMA_SERVICE_NAME=llama-coder \
-./result/bin/llama-cpp-webui --web-host 127.0.0.1 --web-port 8080
+./result/bin/llamacpp-launcher --web-host 127.0.0.1 --web-port 8080
 ```
 
 Open <http://localhost:8080>.
@@ -124,7 +124,7 @@ Example:
 
 ```bash
 curl -s localhost:8080/api/version
-# {"name":"llama-cpp-webui","service":"llama-coder"}
+# {"name":"llamacpp-launcher","service":"llama-coder"}
 
 curl -s -XPOST localhost:8080/api/config \
   -H 'Content-Type: application/json' \
@@ -202,7 +202,7 @@ node tests/ui_i18n.test.mjs   # UI/i18n tests (26 assertions)
 - Build and test inside the flake dev shell (`nix develop`) — go + nodejs with
   `CGO_ENABLED=0` by default (no gcc needed).
 - Run `nix flake check` before finishing, and add tests for new code.
-- Run `nix fmt flake.nix` to keep the Nix code alejandra-formatted.
+- Run `nix fmt flake.nix` to keep the Nix code nixfmt-formatted.
 - Run `nix run .#smoke` for a full build + API round-trip (needs no llama-server).
 - Keep the stdlib-only, minimal style; never break the `buildExecStart` ordering invariant.
 - Bilingual UI: add every new string to the `I18N` table (`en` + `ru`) or the UI/i18n test breaks.

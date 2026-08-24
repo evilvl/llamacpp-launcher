@@ -23,7 +23,7 @@ func TestVersion(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &m); err != nil {
 		t.Fatalf("json: %v", err)
 	}
-	if m["name"] != "llama-cpp-webui" {
+	if m["name"] != "llamacpp-launcher" {
 		t.Fatalf("name = %v", m["name"])
 	}
 }

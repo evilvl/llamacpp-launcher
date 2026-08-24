@@ -1,5 +1,5 @@
 # Compiled binary
-/llama-cpp-webui
+/llamacpp-launcher
 
 # Project agent manual (root-level, kept out of version control)
 /AGENTS.md

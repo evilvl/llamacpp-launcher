@@ -82,7 +82,7 @@ func main() {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	log.Printf("llama-cpp-webui слушает http://%s  (service=%s)", addr, app.ServiceName)
+	log.Printf("llamacpp-launcher слушает http://%s  (service=%s)", addr, app.ServiceName)
 	log.Printf("журнал: journalctl -u %s -f", app.ServiceName)
 	if err := srv.ListenAndServe(); err != nil {
 		log.Fatalf("server error: %v", err)
@@ -90,7 +90,7 @@ func main() {
 }
 
 func handleVersion(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, map[string]any{"name": "llama-cpp-webui", "service": app.ServiceName})
+	writeJSON(w, map[string]any{"name": "llamacpp-launcher", "service": app.ServiceName})
 }
 
 func envOr(key, def string) string {
